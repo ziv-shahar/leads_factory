@@ -1,0 +1,69 @@
+{
+  "document_type": "job_posting_aggregation",
+  "source": "LinkedIn Jobs API",
+  "extracted_date": "2025-12-20",
+  "company": "ACME CLOUD",
+  "data": {
+    "company_info": {
+      "name": "ACME CLOUD",
+      "industry": "Computer Software",
+      "headquarters": "San Francisco, California",
+      "website": "https://www.acmecloud.io",
+      "linkedin": "https://www.linkedin.com/company/acme-cloud"
+    },
+    "hiring_activity": {
+      "total_active_postings": 47,
+      "new_postings_last_30_days": 35,
+      "trend": "significant_increase",
+      "key_roles": [
+        {
+          "title": "Senior Cloud Architect",
+          "count": 8,
+          "locations": ["San Francisco, CA", "Remote"],
+          "posted_date": "2025-12-10"
+        },
+        {
+          "title": "Sales Director - EMEA",
+          "count": 3,
+          "locations": ["London, UK", "Amsterdam, NL"],
+          "posted_date": "2025-12-12"
+        },
+        {
+          "title": "DevOps Engineer",
+          "count": 12,
+          "locations": ["San Francisco, CA", "Austin, TX", "Remote"],
+          "posted_date": "2025-12-05"
+        },
+        {
+          "title": "Customer Success Manager",
+          "count": 6,
+          "locations": ["San Francisco, CA", "New York, NY"],
+          "posted_date": "2025-12-08"
+        }
+      ]
+    },
+    "employee_growth": {
+      "current_employee_count_estimate": 285,
+      "previous_quarter_estimate": 210,
+      "growth_rate": "35.7%",
+      "note": "Significant headcount expansion indicating rapid scaling"
+    },
+    "signals": [
+      {
+        "type": "international_expansion",
+        "description": "Multiple EMEA-focused sales and customer success roles suggest European market entry",
+        "confidence": "high"
+      },
+      {
+        "type": "engineering_capacity_buildup",
+        "description": "Heavy hiring in engineering roles (20+ positions) indicates product development acceleration",
+        "confidence": "high"
+      },
+      {
+        "type": "office_expansion",
+        "description": "New Austin, TX office location appearing in recent job postings",
+        "confidence": "medium"
+      }
+    ]
+  }
+}
