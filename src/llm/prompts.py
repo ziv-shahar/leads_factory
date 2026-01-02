@@ -141,12 +141,12 @@ Return a JSON object with this structure:
       "extraction_confidence": 0.0-1.0,
       "missing_fields": ["list", "of", "missing", "fields"],
       "key_facts": {{
-        "amount": "optional",
-        "location": "optional",
-        "people": ["optional"],
-        "dates": ["optional"],
-        "companies": ["other companies involved"],
-        "products": ["optional"]
+        "amount": "string or null (e.g., '$50M', '100 employees')",
+        "location": "string or null (e.g., 'San Francisco, CA')",
+        "people": ["array of names"] or null,
+        "dates": ["array of date strings"] or null,
+        "companies": ["array of company names"] or null,
+        "products": ["array of product names"] or null
       }},
       "source_url": "optional URL",
       "event_date": "optional ISO date",
@@ -166,6 +166,8 @@ IMPORTANT:
 - If document mentions multiple companies, create separate event objects for each
 - Each event should be from the perspective of that company
 - Cross-reference related companies in key_facts.companies
+- For optional string fields (amount, location, source_url, event_date): use null, NOT empty array []
+- For optional array fields (people, dates, companies, products): use null or empty array []
 
 JSON OUTPUT:"""
 

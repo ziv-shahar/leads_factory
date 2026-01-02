@@ -21,6 +21,17 @@ class KeyFact(BaseModel):
     products: Optional[List[str]] = None
     other: Optional[Dict[str, Any]] = None
 
+    @field_validator('amount', 'location', mode='before')
+    @classmethod
+    def convert_empty_list_to_none(cls, v):
+        """Convert empty lists to None for string fields (LLM sometimes returns [])."""
+        if isinstance(v, list) and len(v) == 0:
+            return None
+        if isinstance(v, list):
+            # If it's a non-empty list, take the first item (shouldn't happen, but be defensive)
+            return v[0] if v else None
+        return v
+
 
 class NormalizedEvent(BaseModel):
     """Strict schema for normalized event extraction for a single company."""
