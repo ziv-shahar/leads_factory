@@ -24,6 +24,10 @@ class KeyFact(BaseModel):
 
 class NormalizedEvent(BaseModel):
     """Strict schema for normalized event extraction."""
+    # Relevance check
+    is_relevant: bool = Field(..., description="True if document is about a company/organization, False otherwise")
+    relevance_reasoning: str = Field(..., description="Brief explanation of relevance decision")
+
     # Core identification
     company_name_raw: str = Field(..., description="Company name exactly as it appears in source")
     company_name_canonical: str = Field(..., description="Normalized company name (UPPERCASE, legal suffixes removed)")

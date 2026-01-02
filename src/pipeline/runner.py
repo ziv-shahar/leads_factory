@@ -108,9 +108,25 @@ class PipelineRunner:
             print("✗ Normalization failed")
             return
 
+        # Check relevance
+        if not normalized_event.is_relevant:
+            raw_event.status = "FAILED"
+            raw_event.error = f"Document not relevant: {normalized_event.relevance_reasoning}"
+            print(f"⊘ Document not relevant: {normalized_event.relevance_reasoning}")
+            return
+
+        # Check minimum confidence threshold
+        MIN_CONFIDENCE = 0.3  # Configurable threshold
+        if normalized_event.extraction_confidence < MIN_CONFIDENCE:
+            raw_event.status = "FAILED"
+            raw_event.error = f"Confidence too low: {normalized_event.extraction_confidence:.2f} < {MIN_CONFIDENCE}"
+            print(f"⊘ Confidence too low: {normalized_event.extraction_confidence:.2f} (minimum: {MIN_CONFIDENCE})")
+            return
+
         print(f"✓ Extracted event: {normalized_event.event_type}")
         print(f"  Company: {normalized_event.company_name_raw} -> {normalized_event.company_name_canonical}")
         print(f"  Confidence: {normalized_event.extraction_confidence:.2f}")
+        print(f"  Relevant: {normalized_event.is_relevant} ({normalized_event.relevance_reasoning})")
         print(f"  Dynamic signals: {len(normalized_event.dynamic_signals)}")
 
         # Canonicalize name
