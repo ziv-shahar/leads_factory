@@ -20,35 +20,45 @@ class LeadScorer:
         """
         self.time_decay_days = time_decay_days or SCORING_TIME_DECAY_DAYS
 
-        # Event type scoring rules (generic, adjust for your domain)
+        # Event type scoring rules for OFFICE SPACE PREDICTION
+        # Both expansion and downsizing indicate office space changes = valuable leads
         self.event_scores = {
-            "funding_round": 20,
-            "partnership": 10,
-            "expansion": 15,
-            "product_launch": 12,
-            "acquisition": 18,
-            "hiring_surge": 15,
-            "leadership_change": 8,
-            "award_recognition": 5,
-            "technology_adoption": 7,
-            "market_entry": 12,
-            "layoffs": -10,
-            "compliance_issue": -15,
+            "funding_round": 20,          # Strong expansion signal
+            "acquisition": 18,             # Office integration/consolidation
+            "hiring_surge": 15,            # Expansion signal
+            "layoffs": 15,                 # Downsizing signal (equally valuable!)
+            "expansion": 15,               # Direct expansion signal
+            "market_entry": 12,            # Potential new offices
+            "product_launch": 12,          # May indicate growth
+            "partnership": 10,             # Potential co-location
+            "leadership_change": 8,        # May drive changes
+            "technology_adoption": 7,      # Infrastructure changes
+            "award_recognition": 5,        # Weak signal
+            "compliance_issue": -15,       # Risk signal (not office-related)
             "other": 5
         }
 
-        # Dynamic signal scoring
+        # Dynamic signal scoring for OFFICE SPACE PREDICTION
+        # Both expansion and downsizing signals are positive
         self.signal_scores = {
             "acquisition_negotiation": 15,
-            "government_expansion": 10,
-            "new_product_line": 8,
+            "office_expansion": 12,              # Direct office expansion
+            "office_downsizing": 12,             # Direct office downsizing (positive!)
+            "office_consolidation": 12,          # Office changes (positive!)
+            "office_closure": 10,                # Office closure = relocation need
+            "office_integration": 10,            # Post-acquisition integration
             "international_expansion": 12,
-            "office_expansion": 7,
-            "patent_filing": 6,
-            "customer_growth": 8,
             "employee_growth": 10,
+            "employee_relocation": 10,           # Relocation = office changes
+            "government_expansion": 10,
             "market_expansion": 10,
+            "remote_work_transition": 8,         # May reduce office needs (still valuable signal)
+            "hq_expansion": 12,                  # HQ expansion
+            "customer_growth": 8,
             "engineering_capacity_buildup": 8,
+            "hiring_surge": 10,                  # As dynamic signal
+            "new_product_line": 8,
+            "patent_filing": 6,
         }
 
     def score_and_materialize_lead(self, db: Session, entity: Entity) -> LeadCurrent:
