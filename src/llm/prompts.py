@@ -55,7 +55,24 @@ File: {file_path}
 Source: {source}
 </source_metadata>
 
-Return a JSON object matching the NormalizedEvent schema. Include all events you can identify - if there are multiple distinct events, focus on the PRIMARY event and include others as dynamic signals.
+Return a JSON object with these REQUIRED fields:
+{{
+  "company_name_raw": "exact company name from document",
+  "company_name_canonical": "UPPERCASE NORMALIZED NAME",
+  "event_type": "one of the event types listed above",
+  "summary": "brief 1-2 sentence summary of the event",
+  "extraction_confidence": 0.0-1.0,
+  "missing_fields": ["list", "of", "missing", "fields"],
+  "dynamic_signals": [
+    {{
+      "signal_type": "type of signal",
+      "description": "description",
+      "evidence_quote": "optional quote"
+    }}
+  ]
+}}
+
+Optional fields: key_facts, source_url, event_date
 
 JSON OUTPUT:"""
 
@@ -95,8 +112,15 @@ Alternative Names: {alternative_names}
 {search_results}
 </search_results>
 
-Extract the official domain, website URL, LinkedIn page, and headquarters location.
-Provide confidence score and reasoning.
+Return a JSON object with these REQUIRED fields:
+{{
+  "official_domain": "domain.com or null",
+  "website_url": "https://... or null",
+  "linkedin_url": "https://linkedin.com/company/... or null",
+  "hq_location": "City, State/Country or null",
+  "enrichment_confidence": 0.0-1.0,
+  "reasoning": "why these values were chosen"
+}}
 
 JSON OUTPUT:"""
 
