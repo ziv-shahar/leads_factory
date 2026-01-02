@@ -23,11 +23,7 @@ class KeyFact(BaseModel):
 
 
 class NormalizedEvent(BaseModel):
-    """Strict schema for normalized event extraction."""
-    # Relevance check
-    is_relevant: bool = Field(..., description="True if document is about a company/organization, False otherwise")
-    relevance_reasoning: str = Field(..., description="Brief explanation of relevance decision")
-
+    """Strict schema for normalized event extraction for a single company."""
     # Core identification
     company_name_raw: str = Field(..., description="Company name exactly as it appears in source")
     company_name_canonical: str = Field(..., description="Normalized company name (UPPERCASE, legal suffixes removed)")
@@ -91,6 +87,20 @@ class NormalizedEvent(BaseModel):
         canonical = ' '.join(canonical.split())  # Normalize whitespace
 
         return canonical
+
+
+class DocumentExtraction(BaseModel):
+    """Complete extraction result from a document, supporting multiple companies."""
+    # Document-level relevance check
+    is_relevant: bool = Field(..., description="True if document relates to the business objective")
+    relevance_reasoning: str = Field(..., description="Why this document is/isn't relevant to the business objective")
+
+    # Events extracted (one per company mentioned)
+    events: List[NormalizedEvent] = Field(
+        ...,
+        min_length=0,
+        description="List of events, one for each company mentioned in the document"
+    )
 
 
 class EnrichmentResult(BaseModel):

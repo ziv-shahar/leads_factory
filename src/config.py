@@ -28,6 +28,12 @@ SERPAPI_KEY = os.getenv("SERPAPI_KEY", "")
 ENRICHMENT_ENABLED = os.getenv("ENRICHMENT_ENABLED", "true").lower() == "true"
 ENRICHMENT_FRESHNESS_DAYS = int(os.getenv("ENRICHMENT_FRESHNESS_DAYS", "30"))
 
+# Business Objective (defines relevance criteria)
+BUSINESS_OBJECTIVE = os.getenv(
+    "BUSINESS_OBJECTIVE",
+    "Predict which companies will need to expand, relocate, or change office space based on growth signals (hiring, funding, acquisitions, layoffs, expansions)"
+)
+
 # Scoring settings
 SCORING_TIME_DECAY_DAYS = int(os.getenv("SCORING_TIME_DECAY_DAYS", "90"))
 

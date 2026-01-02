@@ -4,10 +4,10 @@ import hashlib
 from typing import Optional, Dict, Any
 from pydantic import ValidationError
 
-from src.config import LLM_PROVIDER, OPENAI_API_KEY, ANTHROPIC_API_KEY
-from src.llm.schemas import NormalizedEvent, get_normalized_name
+from src.config import LLM_PROVIDER, OPENAI_API_KEY, ANTHROPIC_API_KEY, BUSINESS_OBJECTIVE
+from src.llm.schemas import NormalizedEvent, DocumentExtraction, get_normalized_name
 from src.llm.prompts import (
-    EXTRACTION_SYSTEM_PROMPT,
+    EXTRACTION_SYSTEM_PROMPT_TEMPLATE,
     EXTRACTION_USER_PROMPT_TEMPLATE,
     JSON_REPAIR_SYSTEM_PROMPT,
     JSON_REPAIR_USER_PROMPT_TEMPLATE
@@ -224,9 +224,9 @@ class Normalizer:
         content: str,
         file_path: str,
         source: str = "unknown"
-    ) -> Optional[NormalizedEvent]:
+    ) -> Optional[DocumentExtraction]:
         """
-        Normalize a document into structured event.
+        Normalize a document into structured events (may extract multiple companies).
 
         Args:
             content: Raw document content
@@ -234,9 +234,14 @@ class Normalizer:
             source: Source identifier
 
         Returns:
-            NormalizedEvent or None if extraction fails
+            DocumentExtraction (contains relevance + list of events) or None if extraction fails
         """
-        # Build prompt
+        # Build system prompt with business objective
+        system_prompt = EXTRACTION_SYSTEM_PROMPT_TEMPLATE.format(
+            business_objective=BUSINESS_OBJECTIVE
+        )
+
+        # Build user prompt
         user_prompt = EXTRACTION_USER_PROMPT_TEMPLATE.format(
             document_content=content,
             file_path=file_path,
@@ -245,7 +250,7 @@ class Normalizer:
 
         try:
             # Get LLM response
-            response = self.llm.complete(EXTRACTION_SYSTEM_PROMPT, user_prompt)
+            response = self.llm.complete(system_prompt, user_prompt)
 
             # Parse JSON
             try:
@@ -255,9 +260,9 @@ class Normalizer:
                 data = self._repair_json(response)
 
             # Validate with Pydantic
-            event = NormalizedEvent(**data)
+            extraction = DocumentExtraction(**data)
 
-            return event
+            return extraction
 
         except ValidationError as e:
             print(f"✗ Validation error for {file_path}: {str(e)}")

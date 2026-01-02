@@ -94,41 +94,68 @@ class PipelineRunner:
             db.add(raw_event)
             db.flush()
 
-        # Normalize (extract event)
+        # Normalize (extract events - may be multiple companies)
         print("→ Normalizing document with LLM...")
-        normalized_event = self.normalizer.normalize_document(
+        extraction = self.normalizer.normalize_document(
             content=content,
             file_path=file_path,
             source="local_bucket"
         )
 
-        if not normalized_event:
+        if not extraction:
             raw_event.status = "FAILED"
             raw_event.error = "Normalization failed"
             print("✗ Normalization failed")
             return
 
         # Check relevance
-        if not normalized_event.is_relevant:
+        if not extraction.is_relevant:
             raw_event.status = "FAILED"
-            raw_event.error = f"Document not relevant: {normalized_event.relevance_reasoning}"
-            print(f"⊘ Document not relevant: {normalized_event.relevance_reasoning}")
+            raw_event.error = f"Document not relevant: {extraction.relevance_reasoning}"
+            print(f"⊘ Document not relevant: {extraction.relevance_reasoning}")
             return
 
-        # Check minimum confidence threshold
+        # Check if any events were extracted
+        if not extraction.events:
+            raw_event.status = "FAILED"
+            raw_event.error = "No companies/events extracted from document"
+            print(f"⊘ No events extracted (document relevant but no actionable companies found)")
+            return
+
+        print(f"✓ Document relevant: {extraction.relevance_reasoning}")
+        print(f"✓ Extracted {len(extraction.events)} event(s) from {len(set(e.company_name_canonical for e in extraction.events))} company(ies)")
+
+        # Process each event (one per company)
         MIN_CONFIDENCE = 0.3  # Configurable threshold
-        if normalized_event.extraction_confidence < MIN_CONFIDENCE:
+        processed_count = 0
+
+        for idx, normalized_event in enumerate(extraction.events, 1):
+            print(f"\n  Event {idx}/{len(extraction.events)}:")
+            print(f"  → Company: {normalized_event.company_name_raw} -> {normalized_event.company_name_canonical}")
+            print(f"  → Type: {normalized_event.event_type}")
+            print(f"  → Confidence: {normalized_event.extraction_confidence:.2f}")
+
+            # Check minimum confidence threshold
+            if normalized_event.extraction_confidence < MIN_CONFIDENCE:
+                print(f"  ⊘ Skipped (confidence too low: {normalized_event.extraction_confidence:.2f} < {MIN_CONFIDENCE})")
+                continue
+
+            # Process this event
+            self._process_event(db, normalized_event, file_path, "local_bucket")
+            processed_count += 1
+
+        if processed_count == 0:
             raw_event.status = "FAILED"
-            raw_event.error = f"Confidence too low: {normalized_event.extraction_confidence:.2f} < {MIN_CONFIDENCE}"
-            print(f"⊘ Confidence too low: {normalized_event.extraction_confidence:.2f} (minimum: {MIN_CONFIDENCE})")
+            raw_event.error = f"All {len(extraction.events)} events below confidence threshold"
+            print(f"\n✗ All events filtered out (low confidence)")
             return
 
-        print(f"✓ Extracted event: {normalized_event.event_type}")
-        print(f"  Company: {normalized_event.company_name_raw} -> {normalized_event.company_name_canonical}")
-        print(f"  Confidence: {normalized_event.extraction_confidence:.2f}")
-        print(f"  Relevant: {normalized_event.is_relevant} ({normalized_event.relevance_reasoning})")
-        print(f"  Dynamic signals: {len(normalized_event.dynamic_signals)}")
+        # Mark as processed
+        raw_event.status = "PROCESSED"
+        print(f"\n✓ File processing complete: {processed_count}/{len(extraction.events)} events processed")
 
+    def _process_event(self, db: Session, normalized_event, file_path: str, source: str):
+        """Process a single event for a company."""
         # Canonicalize name
         canonical_name, normalized_name = canonicalize_company_name(
             normalized_event.company_name_canonical
@@ -196,13 +223,10 @@ class PipelineRunner:
         print(f"✓ Event persisted: {event.id}")
 
         # Score and materialize lead
-        print("→ Scoring lead...")
+        print(f"  → Scoring lead for {canonical_name}...")
         lead = self.scorer.score_and_materialize_lead(db, entity)
         db.flush()
-
-        # Mark raw event as processed
-        raw_event.status = "PROCESSED"
-        print(f"✓ File processing complete")
+        print(f"  ✓ Event processed for {canonical_name}")
 
     def _parse_date(self, date_str: str) -> datetime:
         """Parse date string to datetime."""
