@@ -56,6 +56,35 @@ Examples:
 - "Acme partners with TechCo" → 2 events: [Acme: partnership, TechCo: partnership]
 - "Acme hires 100 people" → 1 event: [Acme: hiring_surge]
 
+MULTIPLE EVENT TYPES FOR SAME COMPANY:
+When a document describes multiple distinct, significant events for ONE company, decide whether to create separate events or use dynamic_signals:
+
+CREATE MULTIPLE EVENTS when:
+1. Multiple major events with different dates (e.g., "raised $50M in March, laid off 15% in August")
+2. Multiple distinct newsworthy events (e.g., "acquired CompX for $20M and laid off 100 sales staff")
+3. Events with opposing signals (positive + negative) that should score independently
+4. Each event has substantial detail worthy of standalone extraction
+
+USE DYNAMIC_SIGNALS when:
+1. Supporting details for the main event (e.g., "raised $50M and plans to hire 200 people")
+2. Minor/contextual information (e.g., "opened new office and hired local manager")
+3. Brief mentions without sufficient detail for standalone event
+4. Information that enriches the primary event but isn't independently significant
+
+Examples:
+- "Acme raised $75M and plans to triple headcount"
+  → 1 event (funding_round) + dynamic_signal (hiring_surge)
+
+- "Acme raised $50M in Q1, acquired StartupX for $20M in Q2, and laid off 15% in Q3"
+  → 3 separate events (funding_round, acquisition, layoffs)
+
+- "Acme opened London office with 20 employees"
+  → 1 event (expansion) + dynamic_signal (hiring_surge)
+
+- "Acme acquired BetaCorp for $100M and immediately laid off 30% of BetaCorp's staff"
+  → 2 events (acquisition with layoffs as dynamic_signal, or separate acquisition + layoffs events)
+  → Prefer 2 events if layoffs are significant enough (30% is major)
+
 EVENT TYPES (use these exactly):
 - funding_round
 - partnership

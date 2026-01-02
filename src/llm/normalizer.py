@@ -307,6 +307,102 @@ class LLMClient:
                     }]
                 })
 
+            # Test case 10: Multiple event types for same company (timeline)
+            elif "techflow" in user_prompt.lower() and ("120 million series d" in user_prompt.lower() or "datapipe solutions" in user_prompt.lower()):
+                return json.dumps({
+                    "is_relevant": True,
+                    "relevance_reasoning": "Multiple major events (funding, acquisition, layoffs, office consolidation) with clear office space implications over 6-month timeline",
+                    "events": [
+                        {
+                            "company_name_raw": "TechFlow Inc.",
+                            "company_name_canonical": "TECHFLOW",
+                            "event_type": "funding_round",
+                            "summary": "TechFlow Inc. raised $120M Series D led by Tiger Global and Sequoia Capital for product roadmap and international expansion.",
+                            "key_facts": {
+                                "amount": "$120M Series D",
+                                "location": None,
+                                "people": ["Maria Rodriguez"],
+                                "dates": ["March 15, 2025"],
+                                "companies": ["Tiger Global Management", "Sequoia Capital"]
+                            },
+                            "source_url": None,
+                            "event_date": "2025-03-15",
+                            "extraction_confidence": 0.95,
+                            "missing_fields": [],
+                            "dynamic_signals": [
+                                {
+                                    "signal_type": "international_expansion",
+                                    "description": "Capital designated for international expansion",
+                                    "evidence_quote": "This capital will accelerate our product roadmap and international expansion"
+                                }
+                            ]
+                        },
+                        {
+                            "company_name_raw": "TechFlow Inc.",
+                            "company_name_canonical": "TECHFLOW",
+                            "event_type": "acquisition",
+                            "summary": "TechFlow Inc. acquired DataPipe Solutions for $45M, integrating 35 employees and Toronto office.",
+                            "key_facts": {
+                                "amount": "$45M",
+                                "location": "Toronto, Canada",
+                                "people": ["Maria Rodriguez"],
+                                "dates": ["June 8, 2025"],
+                                "companies": ["DataPipe Solutions"]
+                            },
+                            "source_url": None,
+                            "event_date": "2025-06-08",
+                            "extraction_confidence": 0.94,
+                            "missing_fields": [],
+                            "dynamic_signals": [
+                                {
+                                    "signal_type": "office_integration",
+                                    "description": "Toronto office to be integrated by Q4 2025",
+                                    "evidence_quote": "The DataPipe Toronto office will be integrated into TechFlow's operations by Q4 2025"
+                                },
+                                {
+                                    "signal_type": "employee_growth",
+                                    "description": "35 DataPipe employees joining engineering team",
+                                    "evidence_quote": "The deal brings 35 DataPipe employees into TechFlow's engineering team"
+                                }
+                            ]
+                        },
+                        {
+                            "company_name_raw": "TechFlow Inc.",
+                            "company_name_canonical": "TECHFLOW",
+                            "event_type": "layoffs",
+                            "summary": "TechFlow Inc. laid off 18% of workforce (150 employees) and consolidating offices from 3 to 2 hubs.",
+                            "key_facts": {
+                                "amount": "150 employees (18% of workforce)",
+                                "location": "Multiple offices",
+                                "people": ["James Mitchell"],
+                                "dates": ["August 22, 2025"],
+                                "companies": None
+                            },
+                            "source_url": None,
+                            "event_date": "2025-08-22",
+                            "extraction_confidence": 0.96,
+                            "missing_fields": [],
+                            "dynamic_signals": [
+                                {
+                                    "signal_type": "office_consolidation",
+                                    "description": "Consolidating 3 regional offices into 2 larger hubs",
+                                    "evidence_quote": "the company is consolidating three regional offices into two larger hubs to optimize operations and reduce overhead costs"
+                                },
+                                {
+                                    "signal_type": "office_expansion",
+                                    "description": "New 65,000 sq ft Austin office (replacing 40k + closing 35k Dallas)",
+                                    "evidence_quote": "TechFlow has signed a new lease for 65,000 square feet in downtown Austin, Texas, consolidating employees from its existing 40,000 sq ft Austin office and the soon-to-close 35,000 sq ft Dallas office"
+                                },
+                                {
+                                    "signal_type": "employee_relocation",
+                                    "description": "85 Dallas employees relocating to Austin or going remote",
+                                    "evidence_quote": "Approximately 85 Dallas-based employees will either relocate to Austin or transition to remote work"
+                                }
+                            ]
+                        }
+                    ]
+                })
+
             if "acme" in user_prompt.lower():
                 # Check which document based on content
                 if "series b" in user_prompt.lower() or "50m" in user_prompt.lower():
