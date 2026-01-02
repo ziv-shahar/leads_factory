@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import List
 from sqlalchemy.orm import Session
 
-from src.config import RAW_DATA_BUCKET
+from src.config import RAW_DATA_BUCKET, ENRICHMENT_ENABLED
 from src.db.session import get_db
 from src.db.models import RawEvent, Entity, Event, LeadCurrent
 from src.io.raw_reader import RawFileReader
@@ -118,29 +118,33 @@ class PipelineRunner:
             normalized_event.company_name_canonical
         )
 
-        # Enrich entity (optional, based on freshness)
-        print("→ Checking if enrichment needed...")
+        # Enrich entity (optional, based on config and freshness)
         enrichment = None
 
-        # Try to find existing entity to check freshness
-        existing_entity = db.query(Entity).filter(
-            Entity.canonical_name == canonical_name
-        ).first()
+        if ENRICHMENT_ENABLED:
+            print("→ Checking if enrichment needed...")
 
-        should_enrich = self.enricher.should_enrich(
-            entity_domain=existing_entity.domain if existing_entity else None,
-            last_enriched_at=existing_entity.last_enriched_at if existing_entity else None,
-            missing_fields=["domain"] if not existing_entity or not existing_entity.domain else []
-        )
+            # Try to find existing entity to check freshness
+            existing_entity = db.query(Entity).filter(
+                Entity.canonical_name == canonical_name
+            ).first()
 
-        if should_enrich:
-            print("→ Enriching entity...")
-            enrichment = self.enricher.enrich_entity(
-                canonical_name=canonical_name,
-                alternative_names=[normalized_event.company_name_raw]
+            should_enrich = self.enricher.should_enrich(
+                entity_domain=existing_entity.domain if existing_entity else None,
+                last_enriched_at=existing_entity.last_enriched_at if existing_entity else None,
+                missing_fields=["domain"] if not existing_entity or not existing_entity.domain else []
             )
+
+            if should_enrich:
+                print("→ Enriching entity...")
+                enrichment = self.enricher.enrich_entity(
+                    canonical_name=canonical_name,
+                    alternative_names=[normalized_event.company_name_raw]
+                )
+            else:
+                print("⊙ Enrichment not needed (recent or has domain)")
         else:
-            print("⊙ Enrichment not needed (recent or has domain)")
+            print("⊙ Enrichment disabled (set ENRICHMENT_ENABLED=true to enable)")
 
         # Resolve entity (dedupe)
         print("→ Resolving entity...")
