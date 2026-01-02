@@ -1,0 +1,18 @@
+BREAKING: DataFlow Systems Raises $75M Series C Led by Sequoia Capital
+
+San Francisco, CA - December 20, 2025
+
+DataFlow Systems, a leading data infrastructure company, announced today it has raised $75 million in Series C funding led by Sequoia Capital, with participation from existing investors Andreessen Horowitz and Kleiner Perkins.
+
+The company plans to triple its engineering team from 85 to 250 employees over the next 12 months, with aggressive hiring across all engineering levels. CEO Maria Chen stated, "This funding will enable us to scale our team dramatically and accelerate our product roadmap."
+
+DataFlow has experienced explosive growth, with annual recurring revenue (ARR) growing 400% year-over-year to reach $50M. The company now serves over 300 enterprise customers including Fortune 500 companies like Walmart, Target, and Bank of America.
+
+"We're seeing unprecedented demand for our platform," said Chen. "We're currently operating out of a 15,000 square foot office in SoMa, but with our planned headcount expansion, we'll need to find significantly larger space by Q2 2026."
+
+The company is also expanding internationally, with plans to open offices in London and Singapore in early 2026 to support growing European and Asian customer bases.
+
+DataFlow competes with established players like Snowflake and Databricks in the rapidly growing cloud data infrastructure market, which is expected to reach $200B by 2027.
+
+Contact: press@dataflow.io
+Website: https://www.dataflow.io
