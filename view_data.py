@@ -41,11 +41,44 @@ def view_all_data():
             print(f"\nID: {event.id}")
             print(f"  Entity: {event.entity.canonical_name if event.entity else 'Unknown'}")
             print(f"  Type: {event.event_type}")
-            print(f"  Summary: {event.strict.get('summary', 'N/A')[:80]}...")
+            print(f"  Summary: {event.strict.get('summary', 'N/A')}")
             print(f"  Confidence: {event.extraction_confidence}")
             print(f"  Date: {event.event_time or event.ingest_time}")
             print(f"  Source: {event.source}")
-            print(f"  Dynamic Signals: {len(event.dynamic_signals)}")
+
+            # Show key facts
+            key_facts = event.strict.get('key_facts', {})
+            if key_facts:
+                print(f"  Key Facts:")
+                if key_facts.get('amount'):
+                    print(f"    Amount: {key_facts['amount']}")
+                if key_facts.get('location'):
+                    print(f"    Location: {key_facts['location']}")
+                if key_facts.get('people'):
+                    print(f"    People: {', '.join(key_facts['people'])}")
+                if key_facts.get('dates'):
+                    print(f"    Dates: {', '.join(key_facts['dates'])}")
+                if key_facts.get('companies'):
+                    print(f"    Companies: {', '.join(key_facts['companies'])}")
+                if key_facts.get('products'):
+                    print(f"    Products: {', '.join(key_facts['products'])}")
+
+            # Show source URL if available
+            source_url = event.strict.get('source_url')
+            if source_url:
+                print(f"  Source URL: {source_url}")
+
+            # Show dynamic signals details
+            if event.dynamic_signals:
+                print(f"  Dynamic Signals ({len(event.dynamic_signals)}):")
+                for signal in event.dynamic_signals:
+                    signal_type = signal.get('signal_type', 'unknown')
+                    description = signal.get('description', 'N/A')
+                    print(f"    • [{signal_type}] {description}")
+                    evidence = signal.get('evidence_quote')
+                    if evidence:
+                        print(f"      Evidence: \"{evidence[:100]}...\"" if len(evidence) > 100 else f"      Evidence: \"{evidence}\"")
+
 
         print("\n" + "=" * 80)
         print("LEADS (Current State)")
