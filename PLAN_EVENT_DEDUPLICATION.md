@@ -5,10 +5,12 @@ Multiple news sources often report the same event (e.g., "Google acquires Wiz fo
 - 100 articles about same acquisition → 100 events → score multiplied by 100x ❌
 
 ## Goal
-Group duplicate events by event_type + same day during scoring, then average their confidence/score:
-- 100 articles about same acquisition → average confidence and score → correct score ✓
+Group duplicate events by **company + event_type + same day** during scoring, then average their confidence/score:
+- 100 articles about Google's acquisition on Jan 3 → average confidence and score → correct score ✓
 
-**IMPORTANT**: We do NOT modify the database. All events stay as-is. Deduplication happens only during scoring calculation.
+**IMPORTANT**:
+- We do NOT modify the database. All events stay as-is. Deduplication happens only during scoring calculation.
+- Events from different companies are NEVER grouped together (even if same type and date)
 
 ## Implementation Strategy
 
@@ -19,7 +21,8 @@ Group duplicate events by event_type + same day during scoring, then average the
 **Approach**:
 ```python
 def score_entity(self, entity: Entity, events: List[Event]) -> float:
-    # Group events by (event_type, date)
+    # NOTE: events parameter already contains only this entity's events
+    # Group events by (event_type, date) - no need for entity_id since we're scoring one entity
     groups = defaultdict(list)
     for event in events:
         key = (event.event_type, event.event_time.date())
@@ -48,6 +51,9 @@ def score_entity(self, entity: Entity, events: List[Event]) -> float:
 ```
 
 **Key insight**: No data modification, just smart grouping during calculation!
+
+**Why no entity_id in grouping key?**
+The `score_entity(entity, events)` function is called **once per entity** with only that entity's events. So we don't need to include entity_id in the key - all events are already from the same company!
 
 ### 2. Updated Scorer Implementation
 
@@ -123,10 +129,12 @@ total = 13.5 (NOT 1500!)
 - Use `event_time.date()` for grouping (ignores time)
 - Events on different days are NOT duplicates (even if same type)
 
-**Example**:
+**Example** (for Google entity):
 - Google acquisition on 2026-01-03 → Group A
 - Google acquisition on 2026-01-05 → Group B (different event!)
 - Google acquisition on 2026-01-03 (from another source) → Group A (duplicate)
+
+**Important**: Microsoft acquisition on 2026-01-03 is scored separately (different entity, different call to `score_entity()`)
 
 **Edge case**: What if `event_time` is null?
 ```python
