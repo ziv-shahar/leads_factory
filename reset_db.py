@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Reset database - drop all tables and recreate with new schema."""
-from src.db.session import get_session, init_db
-from src.db.models import Base, engine
+from src.db.session import init_db
+from src.db.models import Base
+from src.db.session import engine
 
 print("Resetting database...")
 print("⚠ WARNING: This will DELETE ALL DATA!")
