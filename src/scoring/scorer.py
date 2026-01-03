@@ -36,7 +36,7 @@ class LeadScorer:
             "leadership_change": 8,        # May drive changes
             "technology_adoption": 7,      # Infrastructure changes
             "award_recognition": 5,        # Weak signal
-            "compliance_issue": -15,       # Risk signal (not office-related)
+            "compliance_issue": 5,       # Risk signal (not office-related)
             "other": 5
         }
 
