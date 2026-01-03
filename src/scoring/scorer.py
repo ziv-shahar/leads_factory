@@ -3,6 +3,8 @@ from typing import List, Dict, Any
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from collections import defaultdict
+from statistics import mean
 
 from src.db.models import Entity, Event, LeadCurrent, LeadStateHistory
 from src.config import SCORING_TIME_DECAY_DAYS
@@ -85,60 +87,82 @@ class LeadScorer:
                 reasons={"reason": "No events found for this entity"}
             )
 
-        # Calculate score
+        # Group events by (event_type, date) to avoid duplicate event inflation
+        # Multiple articles about same event on same day should be averaged, not summed
+        event_groups = defaultdict(list)
+        for event in events:
+            event_date = (event.event_time or event.ingest_time).date()
+            key = (event.event_type, event_date)
+            event_groups[key].append(event)
+
+        # Calculate score with deduplication
         total_score = 0
         confidence_scores = []
         reasons = []
         evidence_events = []
 
-        for event in events:
-            # Base score from event type
-            event_score = self.event_scores.get(event.event_type, 0)
+        for (event_type, event_date), duplicate_events in event_groups.items():
+            # Calculate score for each duplicate event in this group
+            group_event_scores = []
+            group_signal_scores = []
 
-            # Apply time decay
-            decay_multiplier = self._calculate_time_decay(event.event_time or event.ingest_time)
-            decayed_score = int(event_score * decay_multiplier)
+            for event in duplicate_events:
+                # Base score from event type
+                event_score = self.event_scores.get(event.event_type, 0)
 
-            # Add to total
-            total_score += decayed_score
+                # Apply time decay
+                decay_multiplier = self._calculate_time_decay(event.event_time or event.ingest_time)
+                decayed_score = event_score * decay_multiplier
 
-            # Track confidence
-            confidence_scores.append(event.extraction_confidence)
+                group_event_scores.append(decayed_score)
 
-            # Build reason
-            if decayed_score != 0:
-                age_days = (datetime.utcnow() - (event.event_time or event.ingest_time)).days
-                reasons.append({
-                    "event_id": str(event.id),
-                    "event_type": event.event_type,
-                    "summary": event.strict.get("summary", "No summary"),
-                    "score_contribution": decayed_score,
-                    "age_days": age_days,
-                    "source": event.source
-                })
+                # Track confidence
+                confidence_scores.append(event.extraction_confidence)
+
+                # Score dynamic signals for this event
+                event_signal_score = 0
+                for signal in event.dynamic_signals:
+                    signal_type = signal.get("signal_type", "")
+                    signal_score = self.signal_scores.get(signal_type, 3)  # Default +3
+                    signal_score = signal_score * decay_multiplier
+                    event_signal_score += signal_score
+
+                group_signal_scores.append(event_signal_score)
+
                 evidence_events.append(str(event.id))
 
-            # Score dynamic signals
-            for signal in event.dynamic_signals:
-                signal_type = signal.get("signal_type", "")
-                signal_score = self.signal_scores.get(signal_type, 3)  # Default +3
-                signal_score = int(signal_score * decay_multiplier)
+            # Average the scores for this group (deduplication)
+            avg_event_score = mean(group_event_scores)
+            avg_signal_score = mean(group_signal_scores) if group_signal_scores else 0
+            group_total_score = int(avg_event_score + avg_signal_score)
 
-                total_score += signal_score
+            total_score += group_total_score
 
-                if signal_score > 0:
-                    reasons.append({
-                        "event_id": str(event.id),
-                        "type": "dynamic_signal",
-                        "signal_type": signal_type,
-                        "description": signal.get("description", ""),
-                        "score_contribution": signal_score
-                    })
+            # Build reason for this group
+            if group_total_score != 0:
+                # Use the first event as representative
+                representative_event = duplicate_events[0]
+                age_days = (datetime.utcnow() - (representative_event.event_time or representative_event.ingest_time)).days
+
+                reason_entry = {
+                    "event_type": event_type,
+                    "event_date": str(event_date),
+                    "summary": representative_event.strict.get("summary", "No summary"),
+                    "score_contribution": group_total_score,
+                    "age_days": age_days,
+                    "duplicate_count": len(duplicate_events),
+                    "sources": [e.source for e in duplicate_events]
+                }
+
+                if len(duplicate_events) > 1:
+                    reason_entry["note"] = f"Averaged {len(duplicate_events)} duplicate events"
+
+                reasons.append(reason_entry)
 
         # Calculate aggregate confidence
         avg_confidence = sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0.0
 
-        # Bonus for multiple independent sources
+        # Bonus for multiple independent sources (still valuable even with deduplication)
         unique_sources = len(set(e.source for e in events))
         if unique_sources > 1:
             source_bonus = (unique_sources - 1) * 5
@@ -157,6 +181,7 @@ class LeadScorer:
             "total_score": total_score,
             "confidence": round(avg_confidence, 2),
             "event_count": len(events),
+            "unique_event_groups": len(event_groups),  # Number of unique events after deduplication
             "unique_sources": unique_sources,
             "evidence_events": evidence_events,
             "breakdown": sorted(reasons, key=lambda x: x.get("score_contribution", 0), reverse=True)
