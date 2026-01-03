@@ -5,141 +5,119 @@ Multiple news sources often report the same event (e.g., "Google acquires Wiz fo
 - 100 articles about same acquisition → 100 events → score multiplied by 100x ❌
 
 ## Goal
-Group duplicate events by company + event_type + same day, then average them before scoring:
-- 100 articles about same acquisition → 1 consolidated event → correct score ✓
+Group duplicate events by event_type + same day during scoring, then average their confidence/score:
+- 100 articles about same acquisition → average confidence and score → correct score ✓
+
+**IMPORTANT**: We do NOT modify the database. All events stay as-is. Deduplication happens only during scoring calculation.
 
 ## Implementation Strategy
 
-### 1. Event Deduplication Logic (New Module)
-**File**: `src/score/deduplicator.py`
+### 1. Simplified Scoring Logic (In-Memory Grouping)
 
+**No new classes needed!** Just modify `Scorer` to group events during calculation.
+
+**Approach**:
 ```python
-class EventDeduplicator:
-    """Deduplicate events before scoring."""
+def score_entity(self, entity: Entity, events: List[Event]) -> float:
+    # Group events by (event_type, date)
+    groups = defaultdict(list)
+    for event in events:
+        key = (event.event_type, event.event_time.date())
+        groups[key].append(event)
 
-    def deduplicate_events(self, events: List[Event]) -> List[ConsolidatedEvent]:
-        """
-        Group events by (entity, event_type, date) and consolidate duplicates.
+    # Score each group (averaging duplicates)
+    total_score = 0
+    for (event_type, date), duplicate_events in groups.items():
+        # Average confidence across duplicates
+        avg_confidence = mean([e.extraction_confidence for e in duplicate_events])
 
-        Grouping keys:
-        - entity_id (same company)
-        - event_type (same type: acquisition, funding, etc.)
-        - event_date (same day, using event_time.date())
+        # Score the event_type once
+        event_score = self._score_event_type(event_type)
 
-        Returns consolidated events with:
-        - averaged confidence
-        - combined dynamic_signals
-        - list of source_ids for audit trail
-        """
-        pass
+        # Average dynamic signal scores
+        avg_signal_score = mean([
+            self._score_dynamic_signals(e.dynamic_signals)
+            for e in duplicate_events
+        ])
+
+        # Apply averaged confidence
+        group_score = (event_score + avg_signal_score) * avg_confidence
+        total_score += group_score
+
+    return total_score
 ```
 
-**ConsolidatedEvent structure**:
-```python
-class ConsolidatedEvent:
-    entity_id: int
-    event_type: str
-    event_date: date
+**Key insight**: No data modification, just smart grouping during calculation!
 
-    # Averaged/consolidated fields
-    average_confidence: float
-    combined_dynamic_signals: List[DynamicSignal]
+### 2. Updated Scorer Implementation
 
-    # Metadata
-    source_count: int  # How many duplicate sources
-    event_ids: List[str]  # Original event IDs for audit
-    representative_summary: str  # Best summary from duplicates
-```
-
-### 2. Deduplication Algorithm
-
-**Step-by-step**:
-
-1. **Group events** by key: `(entity_id, event_type, event_date)`
-   ```python
-   groups = defaultdict(list)
-   for event in events:
-       key = (event.entity_id, event.event_type, event.event_time.date())
-       groups[key].append(event)
-   ```
-
-2. **For each group, consolidate**:
-   ```python
-   consolidated = []
-   for (entity_id, event_type, event_date), duplicate_events in groups.items():
-       # Average confidence
-       avg_confidence = mean([e.extraction_confidence for e in duplicate_events])
-
-       # Combine unique dynamic signals (dedupe by signal_type)
-       all_signals = []
-       for event in duplicate_events:
-           all_signals.extend(event.dynamic_signals)
-       unique_signals = dedupe_signals_by_type(all_signals)
-
-       # Pick best summary (highest confidence event)
-       best_event = max(duplicate_events, key=lambda e: e.extraction_confidence)
-
-       consolidated.append(ConsolidatedEvent(
-           entity_id=entity_id,
-           event_type=event_type,
-           event_date=event_date,
-           average_confidence=avg_confidence,
-           combined_dynamic_signals=unique_signals,
-           source_count=len(duplicate_events),
-           event_ids=[e.id for e in duplicate_events],
-           representative_summary=best_event.summary
-       ))
-   ```
-
-3. **Dedupe dynamic signals**:
-   ```python
-   def dedupe_signals_by_type(signals: List[Dict]) -> List[Dict]:
-       """Keep only one signal per signal_type, picking highest evidence quality."""
-       seen = {}
-       for signal in signals:
-           sig_type = signal['signal_type']
-           if sig_type not in seen or len(signal.get('evidence_quote', '')) > len(seen[sig_type].get('evidence_quote', '')):
-               seen[sig_type] = signal
-       return list(seen.values())
-   ```
-
-### 3. Integration with Scorer
-
-**Update**: `src/score/scorer.py`
+**File**: `src/score/scorer.py`
 
 **Current flow**:
 ```
-get events for entity → score each event → sum scores
+get events for entity → score each event individually → sum scores
 ```
 
 **New flow**:
 ```
-get events for entity → deduplicate events → score consolidated events → sum scores
+get events for entity → group by (type, date) → average each group → sum scores
 ```
 
-**Changes**:
+**Complete implementation**:
 ```python
+from collections import defaultdict
+from statistics import mean
+
 class Scorer:
-    def __init__(self):
-        self.deduplicator = EventDeduplicator()
-
     def score_entity(self, entity: Entity, events: List[Event]) -> float:
-        # NEW: Deduplicate events first
-        consolidated_events = self.deduplicator.deduplicate_events(events)
+        """
+        Score entity by averaging duplicate events before summing.
 
-        # Score consolidated events (not raw events)
-        total_score = 0
-        for cons_event in consolidated_events:
-            event_score = self._score_event_type(cons_event.event_type)
-            signal_score = self._score_dynamic_signals(cons_event.combined_dynamic_signals)
+        Grouping: Events with same event_type on same date are averaged.
+        """
+        if not events:
+            return 0.0
 
-            # Apply average confidence
-            total_score += (event_score + signal_score) * cons_event.average_confidence
+        # Group events by (event_type, date)
+        groups = defaultdict(list)
+        for event in events:
+            event_date = event.event_time.date() if event.event_time else None
+            key = (event.event_type, event_date)
+            groups[key].append(event)
+
+        # Score each group
+        total_score = 0.0
+        for (event_type, date), duplicate_events in groups.items():
+            # Calculate scores for each duplicate
+            event_scores = []
+            for event in duplicate_events:
+                event_type_score = self._score_event_type(event.event_type)
+                signal_score = self._score_dynamic_signals(event.dynamic_signals)
+                event_total = event_type_score + signal_score
+
+                # Apply confidence
+                weighted_score = event_total * event.extraction_confidence
+                event_scores.append(weighted_score)
+
+            # Average the scores for this group
+            avg_score = mean(event_scores)
+            total_score += avg_score
 
         return total_score
 ```
 
-### 4. Date Handling Considerations
+**Example**:
+```
+# Before (100 duplicate acquisitions):
+score = 15 * 100 = 1500
+
+# After (100 duplicates averaged):
+scores = [15*0.9, 15*0.85, 15*0.92, ...] (100 scores)
+avg_score = mean(scores) = ~13.5
+total = 13.5 (NOT 1500!)
+```
+
+### 3. Date Handling
 
 **What counts as "same day"?**
 - Use `event_time.date()` for grouping (ignores time)
@@ -150,136 +128,79 @@ class Scorer:
 - Google acquisition on 2026-01-05 → Group B (different event!)
 - Google acquisition on 2026-01-03 (from another source) → Group A (duplicate)
 
-**Edge case**: What if `event_date` is null?
+**Edge case**: What if `event_time` is null?
 ```python
-# Group by event_date if available, otherwise use event_time.date()
-def get_event_date(event: Event) -> date:
-    if event.event_time:
-        return event.event_time.date()
-    return None  # Group separately as "unknown date"
+event_date = event.event_time.date() if event.event_time else None
+key = (event.event_type, event_date)
+# Events with None date group separately
 ```
 
-### 5. Audit Trail & Transparency
-
-**Problem**: User needs to see which events were consolidated.
-
-**Solution**: Add metadata to LeadCurrent:
-```python
-# In scoring result
-class ScoringMetadata:
-    total_events: int  # Raw event count
-    unique_events: int  # After deduplication
-    consolidation_ratio: float  # unique/total (lower = more duplicates)
-```
-
-**Display in view_data.py**:
-```
-Entity: GOOGLE
-  Score: 18
-  Total Events: 47
-  Unique Events: 3  (consolidated from 47 sources)
-  Event Types:
-    - acquisition (15 sources → 1 consolidated event)
-    - expansion (2 sources → 1 consolidated event)
-    - hiring_surge (30 sources → 1 consolidated event)
-```
-
-### 6. Testing Strategy
+### 4. Testing Strategy
 
 **Test cases**:
 
 1. **No duplicates** (control)
-   - 3 different events (acquisition, funding, layoffs) → 3 consolidated events
+   - 3 different events (acquisition, funding, layoffs) → 3 groups
    - Score = sum of all 3
 
 2. **Perfect duplicates**
-   - 10 identical acquisition events (same day) → 1 consolidated event
-   - Score = 1x acquisition score (NOT 10x)
+   - 10 identical acquisition events (same day) → 1 group with 10 events
+   - Score = average of 10 scores (NOT sum!)
 
 3. **Partial duplicates**
    - 5 acquisition events on Jan 3
    - 3 expansion events on Jan 5
    - 2 acquisition events on Jan 10
-   - Result: 3 consolidated events
+   - Result: 3 groups, each averaged separately
 
 4. **Different confidence levels**
-   - Event A: confidence 0.9
-   - Event B: confidence 0.7 (duplicate of A)
-   - Event C: confidence 0.8 (duplicate of A)
-   - Consolidated: confidence = (0.9 + 0.7 + 0.8) / 3 = 0.8
+   - Event A: acquisition, score 15 * 0.9 = 13.5
+   - Event B: acquisition, score 15 * 0.7 = 10.5 (same day)
+   - Event C: acquisition, score 15 * 0.8 = 12.0 (same day)
+   - Group average: (13.5 + 10.5 + 12.0) / 3 = 12.0
 
-5. **Dynamic signal merging**
-   - Event A: signals [office_expansion, hiring_surge]
-   - Event B: signals [office_expansion, technology_adoption] (duplicate)
-   - Consolidated: signals [office_expansion, hiring_surge, technology_adoption]
+### 5. Implementation Steps
 
-### 7. Implementation Order
+1. Read current `src/score/scorer.py` to understand existing logic
+2. Update `score_entity()` method to group events before scoring
+3. Test with duplicate events
+4. Verify scores are reasonable (not inflated)
 
-**Phase 1: Core deduplication** (MVP)
-1. Create `src/score/deduplicator.py` with `EventDeduplicator` class
-2. Implement grouping by (entity_id, event_type, date)
-3. Implement consolidation (average confidence, merge signals)
-4. Add unit tests
-
-**Phase 2: Integration**
-5. Update `Scorer` to use deduplicator
-6. Test with real data (100 duplicate events)
-7. Verify scores are correct
-
-**Phase 3: Transparency**
-8. Add consolidation metadata to scoring
-9. Update view_data.py to show consolidation stats
-10. Add audit trail (which events were consolidated)
-
-### 8. Edge Cases to Handle
+### 6. Edge Cases to Handle
 
 **Q: What if same event type but different key_facts?**
-- Example: "Google layoffs - 100 people" vs "Google layoffs - 200 people"
-- **Answer**: Still consolidate (same day, same type). Pick highest confidence for key_facts.
+- Example: "Google layoffs - 100 people" vs "Google layoffs - 200 people" (same day)
+- **Answer**: Still group together and average. Both are reporting the same event.
 
 **Q: What if event_time is null?**
-- **Answer**: Group separately as "unknown_date" category, don't consolidate with dated events.
+- **Answer**: Group key = `(event_type, None)`. Events with null dates group separately.
 
-**Q: What about events spanning multiple days?**
-- Example: "Layoffs announced Monday, effective Friday"
-- **Answer**: Use `event_date` field if available, otherwise `event_time`. Single canonical date per event.
-
-**Q: Should we consolidate across different event_types?**
+**Q: Should we group across different event_types?**
 - Example: "Google acquisition" + "Google expansion" on same day
-- **Answer**: NO. Different event types = different events. Only consolidate within same type.
+- **Answer**: NO. Different event types = different groups. Only average within same type.
 
-### 9. Database Schema Changes
+### 7. Success Metrics
 
-**Option A**: No schema changes
-- Deduplication happens in-memory during scoring
-- All raw events stay in database
-- ✓ Simple, no migration needed
+**Before averaging (current)**:
+- 100 news articles about Google acquisition (same day) → Score: 15 * 100 = **1,500**
 
-**Option B**: Add consolidation table
-- New table: `consolidated_events`
-- Stores pre-computed consolidations
-- ✓ Faster scoring, ✗ More complexity
-
-**Recommendation**: Start with Option A (in-memory), migrate to Option B if performance issues.
-
-### 10. Success Metrics
-
-**Before deduplication**:
-- 100 news articles about Google acquisition → Score: 1500 (15 per event * 100)
-
-**After deduplication**:
-- 100 news articles about Google acquisition → 1 consolidated event → Score: 15
-- Confidence: average of 100 confidences (e.g., 0.92)
+**After averaging (new)**:
+- 100 news articles about Google acquisition (same day) → Averaged score: **~13-15**
+- Each article has slightly different confidence (0.85-0.95)
+- Average of (15*0.9 + 15*0.85 + ... + 15*0.92) / 100 ≈ 13.5
 
 **Validation**:
-- Check consolidation_ratio for popular companies (Google, Apple, etc.)
-- Should see ratio < 0.5 (more than 50% duplicates)
-- Scores should be more reasonable (not inflated by news coverage)
+- Scores for popular companies (Google, Apple) should be reasonable (not 1000+)
+- Multiple events of different types should still add up
+- Example: Google has acquisition (15) + expansion (18) = 33 points total
 
 ## Summary
 
-This plan implements event deduplication **before scoring** to prevent duplicate events from inflating scores. The key insight is:
+This plan implements **in-memory event averaging during scoring** to prevent duplicate events from inflating scores:
 
-**Raw events** (stored in DB) → **Consolidated events** (in-memory grouping) → **Scoring** (on consolidated)
+1. **Keep all events in database** (no changes to data)
+2. **During scoring**: Group events by (event_type, date)
+3. **Average each group's score** instead of summing
+4. **Sum the averaged groups** for final score
 
-This preserves all source data while ensuring fair scoring.
+**Key insight**: All events stay in database. Averaging happens only during score calculation.
