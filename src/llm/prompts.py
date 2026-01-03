@@ -205,6 +205,18 @@ LINKEDIN:
 - Extract the full company page URL (e.g., "https://www.linkedin.com/company/acme-cloud")
 - Must be /company/ page, not personal profiles
 
+HEADQUARTERS LOCATION EXTRACTION:
+Extract the company's headquarters location in separate city and state fields, using the SAME format as event locations:
+- For US locations: hq_city="Mountain View", hq_state="CA" (use 2-letter state code)
+- For international: hq_city="London", hq_state="United Kingdom" (use full country name)
+- If HQ location not found in search results: hq_city=null, hq_state=null
+
+Examples:
+- "Based in San Francisco, California" → hq_city="San Francisco", hq_state="CA"
+- "Headquarters in Austin, TX" → hq_city="Austin", hq_state="TX"
+- "London-based startup" → hq_city="London", hq_state="United Kingdom"
+- "Tokyo office" → hq_city="Tokyo", hq_state="Japan"
+
 CONFIDENCE SCORING:
 - 1.0: Perfect match, multiple consistent sources
 - 0.8-0.9: Strong match, good source quality
@@ -227,10 +239,16 @@ Return a JSON object with these REQUIRED fields:
   "official_domain": "domain.com or null",
   "website_url": "https://... or null",
   "linkedin_url": "https://linkedin.com/company/... or null",
-  "hq_location": "City, State/Country or null",
+  "hq_city": "string or null - headquarters city (e.g., 'San Francisco')",
+  "hq_state": "string or null - headquarters state/country (e.g., 'CA' or 'United Kingdom')",
   "enrichment_confidence": 0.0-1.0,
   "reasoning": "why these values were chosen"
 }}
+
+IMPORTANT:
+- For optional string fields (official_domain, website_url, linkedin_url, hq_city, hq_state): use null, NOT empty array []
+- Use 2-letter state codes for US (CA, NY, TX, etc.)
+- Use full country names for international (United Kingdom, Japan, Germany, etc.)
 
 JSON OUTPUT:"""
 

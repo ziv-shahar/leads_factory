@@ -120,9 +120,20 @@ class EnrichmentResult(BaseModel):
     official_domain: Optional[str] = Field(None, description="Official domain (e.g., 'acmecloud.io')")
     website_url: Optional[str] = Field(None, description="Full website URL")
     linkedin_url: Optional[str] = Field(None, description="LinkedIn company page URL")
-    hq_location: Optional[str] = Field(None, description="Headquarters location")
+    hq_city: Optional[str] = Field(None, description="Headquarters city")
+    hq_state: Optional[str] = Field(None, description="Headquarters state/country")
     enrichment_confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence in enrichment")
     reasoning: Optional[str] = Field(None, description="Why these values were chosen")
+
+    @field_validator('hq_city', 'hq_state', mode='before')
+    @classmethod
+    def convert_empty_list_to_none(cls, v):
+        """Convert empty lists to None for string fields (LLM sometimes returns [])."""
+        if isinstance(v, list) and len(v) == 0:
+            return None
+        if isinstance(v, list):
+            return v[0] if v else None
+        return v
 
 
 # Helper function to get normalized name (no punctuation/spaces)

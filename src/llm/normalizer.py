@@ -78,9 +78,10 @@ class LLMClient:
                 "official_domain": "acmecloud.io",
                 "website_url": "https://www.acmecloud.io",
                 "linkedin_url": "https://www.linkedin.com/company/acme-cloud",
-                "hq_location": "San Francisco, California",
+                "hq_city": "San Francisco",
+                "hq_state": "CA",
                 "enrichment_confidence": 0.95,
-                "reasoning": "Multiple consistent sources confirm acmecloud.io as official domain"
+                "reasoning": "Multiple consistent sources confirm acmecloud.io as official domain and San Francisco HQ"
             })
 
         # Check if this is a DocumentExtraction request (has business objective in system prompt)

@@ -39,7 +39,8 @@ class Entity(Base):
     domain = Column(String(255), nullable=True, unique=True)  # Best global identifier
     website_url = Column(String(1024), nullable=True)
     linkedin_url = Column(String(1024), nullable=True)
-    hq_location = Column(String(512), nullable=True)
+    hq_city = Column(String(255), nullable=True)  # Headquarters city
+    hq_state = Column(String(255), nullable=True)  # Headquarters state/country
     last_enriched_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 

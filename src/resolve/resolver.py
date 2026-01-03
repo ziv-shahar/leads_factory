@@ -121,9 +121,12 @@ class EntityResolver:
             entity.linkedin_url = enrichment.linkedin_url
             updated = True
 
-        # Update HQ location
-        if enrichment.hq_location and not entity.hq_location:
-            entity.hq_location = enrichment.hq_location
+        # Update HQ location (city and state)
+        if enrichment.hq_city and not entity.hq_city:
+            entity.hq_city = enrichment.hq_city
+            updated = True
+        if enrichment.hq_state and not entity.hq_state:
+            entity.hq_state = enrichment.hq_state
             updated = True
 
         # Update enrichment timestamp

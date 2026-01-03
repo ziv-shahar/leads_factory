@@ -278,7 +278,11 @@ class PipelineRunner:
             print(f"  Domain: {entity.domain or 'N/A'}")
             print(f"  Website: {entity.website_url or 'N/A'}")
             print(f"  LinkedIn: {entity.linkedin_url or 'N/A'}")
-            print(f"  HQ: {entity.hq_location or 'N/A'}")
+            if entity.hq_city or entity.hq_state:
+                hq = f"{entity.hq_city or 'Unknown'}, {entity.hq_state or 'Unknown'}"
+                print(f"  HQ: {hq}")
+            else:
+                print(f"  HQ: N/A")
 
             # Events
             events = db.query(Event).filter(Event.entity_id == entity.id).all()

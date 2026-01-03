@@ -31,7 +31,11 @@ def view_all_data():
             print(f"  Domain: {entity.domain}")
             print(f"  Website: {entity.website_url}")
             print(f"  LinkedIn: {entity.linkedin_url}")
-            print(f"  HQ: {entity.hq_location}")
+            if entity.hq_city or entity.hq_state:
+                hq = f"{entity.hq_city or 'Unknown'}, {entity.hq_state or 'Unknown'}"
+                print(f"  HQ: {hq}")
+            else:
+                print(f"  HQ: None")
 
         print("\n" + "=" * 80)
         print("EVENTS (Extracted Events)")
