@@ -99,7 +99,8 @@ class LLMClient:
                         "summary": "DataFlow Systems raised $75M Series C and plans to triple headcount from 85 to 250 employees, requiring larger office space.",
                         "key_facts": {
                             "amount": "$75M Series C",
-                            "location": "Austin, Texas",
+                            "city": "Austin",
+                            "state": "TX",
                             "people": ["Jessica Martinez"],
                             "dates": ["November 10, 2025"],
                             "companies": ["Sequoia Capital", "Andreessen Horowitz"]
@@ -168,7 +169,8 @@ class LLMClient:
                             "summary": "TechCorp acquired VisionLabs for $150M, relocating 85 employees to SF headquarters.",
                             "key_facts": {
                                 "amount": "$150M",
-                                "location": "San Francisco, CA",
+                                "city": "San Francisco",
+                                "state": "CA",
                                 "people": ["Tom Richardson"],
                                 "dates": ["December 1, 2025"],
                                 "companies": ["VisionLabs"]
@@ -197,7 +199,8 @@ class LLMClient:
                             "summary": "VisionLabs acquired by TechCorp for $150M, employees relocating to San Francisco.",
                             "key_facts": {
                                 "amount": "$150M",
-                                "location": "Boston, MA → San Francisco, CA",
+                                "city": "Boston",
+                                "state": "MA",
                                 "people": None,
                                 "dates": ["December 1, 2025"],
                                 "companies": ["TechCorp"]
@@ -234,7 +237,8 @@ class LLMClient:
                         "summary": "StreamTech laid off 30% of workforce and downsizing office from 85,000 to 40,000 sq ft.",
                         "key_facts": {
                             "amount": "120 employees (30% of workforce)",
-                            "location": "Seattle, WA",
+                            "city": "Seattle",
+                            "state": "WA",
                             "people": ["Robert Kim"],
                             "dates": ["November 28, 2025"],
                             "companies": None
@@ -278,7 +282,8 @@ class LLMClient:
                         "summary": "CyberShield opening offices in London, Singapore, and Toronto, hiring 200 employees across three locations.",
                         "key_facts": {
                             "amount": "200 new employees across 3 offices",
-                            "location": "London, UK; Singapore; Toronto, Canada",
+                            "city": "Austin",
+                            "state": "TX",
                             "people": ["Jennifer Lee", "Mark Peterson"],
                             "dates": ["Q1 2026"],
                             "companies": None
@@ -320,7 +325,8 @@ class LLMClient:
                             "summary": "TechFlow Inc. raised $120M Series D led by Tiger Global and Sequoia Capital for product roadmap and international expansion.",
                             "key_facts": {
                                 "amount": "$120M Series D",
-                                "location": None,
+                                "city": None,
+                                "state": None,
                                 "people": ["Maria Rodriguez"],
                                 "dates": ["March 15, 2025"],
                                 "companies": ["Tiger Global Management", "Sequoia Capital"]
@@ -344,7 +350,8 @@ class LLMClient:
                             "summary": "TechFlow Inc. acquired DataPipe Solutions for $45M, integrating 35 employees and Toronto office.",
                             "key_facts": {
                                 "amount": "$45M",
-                                "location": "Toronto, Canada",
+                                "city": "Toronto",
+                                "state": "Canada",
                                 "people": ["Maria Rodriguez"],
                                 "dates": ["June 8, 2025"],
                                 "companies": ["DataPipe Solutions"]
@@ -373,7 +380,8 @@ class LLMClient:
                             "summary": "TechFlow Inc. laid off 18% of workforce (150 employees) and consolidating offices from 3 to 2 hubs.",
                             "key_facts": {
                                 "amount": "150 employees (18% of workforce)",
-                                "location": "Multiple offices",
+                                "city": "Austin",
+                                "state": "TX",
                                 "people": ["James Mitchell"],
                                 "dates": ["August 22, 2025"],
                                 "companies": None
@@ -416,7 +424,8 @@ class LLMClient:
                             "summary": "Acme Cloud Inc. raised $50M in Series B funding led by Venture Capital Partners.",
                             "key_facts": {
                                 "amount": "$50M",
-                                "location": "San Francisco, CA",
+                                "city": "San Francisco",
+                                "state": "CA",
                                 "people": ["Sarah Chen"],
                                 "dates": ["December 15, 2025"],
                                 "companies": ["Venture Capital Partners", "TechFund", "Innovation Capital"]
@@ -455,7 +464,8 @@ class LLMClient:
                             "summary": "acme cloud llc announced strategic partnership with GlobalTech Enterprises worth $15M over 3 years.",
                             "key_facts": {
                                 "amount": "$15M over 3 years",
-                                "location": "San Francisco (implied)",
+                                "city": "San Francisco",
+                                "state": "CA",
                                 "people": ["Sarah Chen", "Michael Torres", "Dr. Lisa Wang"],
                                 "dates": ["December 18, 2025"],
                                 "companies": ["GlobalTech Enterprises"]
@@ -504,7 +514,8 @@ class LLMClient:
                             "summary": "ACME CLOUD is rapidly hiring with 47 active job postings, including significant EMEA expansion roles.",
                             "key_facts": {
                                 "amount": "47 active postings, 35 new in last 30 days",
-                                "location": "San Francisco, CA; London, UK; Amsterdam, NL; Austin, TX",
+                                "city": "San Francisco",
+                                "state": "CA",
                                 "people": None,
                                 "dates": ["December 2025"],
                                 "companies": None

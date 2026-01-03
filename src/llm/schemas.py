@@ -14,14 +14,15 @@ class DynamicSignal(BaseModel):
 class KeyFact(BaseModel):
     """Structured key facts extracted from the event."""
     amount: Optional[str] = None  # e.g., "$50M", "500 employees"
-    location: Optional[str] = None
+    city: Optional[str] = None  # City where event occurred
+    state: Optional[str] = None  # State/country where event occurred
     people: Optional[List[str]] = None
     dates: Optional[List[str]] = None
     companies: Optional[List[str]] = None  # Related companies (partners, competitors, etc.)
     products: Optional[List[str]] = None
     other: Optional[Dict[str, Any]] = None
 
-    @field_validator('amount', 'location', mode='before')
+    @field_validator('amount', 'city', 'state', mode='before')
     @classmethod
     def convert_empty_list_to_none(cls, v):
         """Convert empty lists to None for string fields (LLM sometimes returns [])."""

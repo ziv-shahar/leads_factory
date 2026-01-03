@@ -104,6 +104,19 @@ COMPANY NAME RULES:
 - company_name_raw: Extract EXACTLY as it appears in the document
 - company_name_canonical: Convert to UPPERCASE, remove legal suffixes (INC/LLC/LTD/CORP/CO), normalize whitespace
 
+LOCATION EXTRACTION (CRITICAL):
+Extract the location where THIS SPECIFIC EVENT occurred, NOT the company's headquarters location.
+
+Examples:
+- "Microsoft laid off 200 workers in Los Angeles" → city="Los Angeles", state="CA" (NOT Redmond, WA)
+- "Google opened new office in Austin" → city="Austin", state="TX" (NOT Mountain View, CA)
+- "Acme raised $50M" with no location mentioned → city=null, state=null (enrichment will add HQ later)
+
+Format:
+- For US locations: city="Los Angeles", state="CA" (use 2-letter state code)
+- For international: city="London", state="United Kingdom" (use full country name)
+- If event location not mentioned in document: city=null, state=null
+
 DYNAMIC SIGNALS:
 Use dynamic_signals for valuable information like:
 - Acquisition rumors or advanced negotiations
@@ -142,7 +155,8 @@ Return a JSON object with this structure:
       "missing_fields": ["list", "of", "missing", "fields"],
       "key_facts": {{
         "amount": "string or null (e.g., '$50M', '100 employees')",
-        "location": "string or null (e.g., 'San Francisco, CA')",
+        "city": "string or null - city where THIS EVENT occurred (e.g., 'Los Angeles')",
+        "state": "string or null - state/country where THIS EVENT occurred (e.g., 'CA' or 'United Kingdom')",
         "people": ["array of names"] or null,
         "dates": ["array of date strings"] or null,
         "companies": ["array of company names"] or null,
@@ -166,8 +180,9 @@ IMPORTANT:
 - If document mentions multiple companies, create separate event objects for each
 - Each event should be from the perspective of that company
 - Cross-reference related companies in key_facts.companies
-- For optional string fields (amount, location, source_url, event_date): use null, NOT empty array []
+- For optional string fields (amount, city, state, source_url, event_date): use null, NOT empty array []
 - For optional array fields (people, dates, companies, products): use null or empty array []
+- CRITICAL: Extract city/state where EVENT happened, NOT company HQ (unless event happened at HQ)
 
 JSON OUTPUT:"""
 

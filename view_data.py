@@ -52,8 +52,10 @@ def view_all_data():
                 print(f"  Key Facts:")
                 if key_facts.get('amount'):
                     print(f"    Amount: {key_facts['amount']}")
-                if key_facts.get('location'):
-                    print(f"    Location: {key_facts['location']}")
+                if key_facts.get('city') or key_facts.get('state'):
+                    city = key_facts.get('city', 'Unknown')
+                    state = key_facts.get('state', 'Unknown')
+                    print(f"    Location: {city}, {state}")
                 if key_facts.get('people'):
                     print(f"    People: {', '.join(key_facts['people'])}")
                 if key_facts.get('dates'):
