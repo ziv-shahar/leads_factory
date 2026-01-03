@@ -70,19 +70,25 @@ class Enricher:
         Returns:
             EnrichmentResult or None if enrichment fails
         """
-        # Build search query
-        search_query = self._build_search_query(canonical_name)
+        # Build search queries - one for website, one for HQ location
+        website_query = self._build_search_query(canonical_name, query_type="website")
+        hq_query = self._build_search_query(canonical_name, query_type="headquarters")
 
-        print(f"  → Searching for: {search_query}")
+        print(f"  → Searching for: {website_query}")
+        print(f"  → Searching for: {hq_query}")
 
-        # Search
-        search_results = self.search.search(search_query, max_results=5)
+        # Search for both
+        website_results = self.search.search(website_query, max_results=5)
+        hq_results = self.search.search(hq_query, max_results=3)
+
+        # Combine results (website results first, then HQ results)
+        search_results = website_results + hq_results
 
         if not search_results:
             print(f"  ⚠ No search results found")
             return None
 
-        print(f"  ✓ Found {len(search_results)} search results")
+        print(f"  ✓ Found {len(website_results)} website results, {len(hq_results)} HQ results")
 
         # Format results for LLM
         formatted_results = format_search_results_for_llm(search_results)
@@ -124,9 +130,22 @@ class Enricher:
             print(f"  ✗ Enrichment error: {str(e)}")
             return None
 
-    def _build_search_query(self, canonical_name: str) -> str:
-        """Build effective search query for company."""
-        # For tech companies, add relevant keywords
-        query = f"{canonical_name} official website company"
+    def _build_search_query(self, canonical_name: str, query_type: str = "website") -> str:
+        """
+        Build effective search query for company.
+
+        Args:
+            canonical_name: Company name
+            query_type: Type of query - "website" or "headquarters"
+
+        Returns:
+            Search query string
+        """
+        if query_type == "headquarters":
+            # Specific query for HQ location
+            query = f"{canonical_name} headquarters location address"
+        else:
+            # General query for company website/info
+            query = f"{canonical_name} official website company"
 
         return query
