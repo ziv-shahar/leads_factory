@@ -18,6 +18,18 @@ LLM_PROVIDER = os.getenv("LLM_PROVIDER", "mock")  # openai, anthropic, mock
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
+# Two-Stage Extraction Configuration
+# Enable two-stage extraction: cheap model filters irrelevant docs, expensive model extracts relevant ones
+TWO_STAGE_EXTRACTION = os.getenv("TWO_STAGE_EXTRACTION", "false").lower() == "true"
+
+# Stage 1: Relevance Filter (cheap model)
+LLM_FILTER_PROVIDER = os.getenv("LLM_FILTER_PROVIDER", "openai")  # openai, anthropic, mock
+LLM_FILTER_MODEL = os.getenv("LLM_FILTER_MODEL", "gpt-3.5-turbo")  # Cheap model for filtering
+
+# Stage 2: Detailed Extraction (expensive model)
+LLM_EXTRACTION_PROVIDER = os.getenv("LLM_EXTRACTION_PROVIDER", "openai")  # openai, anthropic, mock
+LLM_EXTRACTION_MODEL = os.getenv("LLM_EXTRACTION_MODEL", "gpt-4o")  # Expensive model for extraction
+
 # Search Configuration
 SEARCH_PROVIDER = os.getenv("SEARCH_PROVIDER", "mock")  # tavily, exa, serpapi, mock
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")

@@ -101,6 +101,12 @@ class NormalizedEvent(BaseModel):
         return canonical
 
 
+class RelevanceCheck(BaseModel):
+    """Lightweight relevance check for two-stage extraction (Stage 1)."""
+    is_relevant: bool = Field(..., description="True if document relates to the business objective")
+    relevance_reasoning: str = Field(..., description="Why this document is/isn't relevant to the business objective")
+
+
 class DocumentExtraction(BaseModel):
     """Complete extraction result from a document, supporting multiple companies."""
     # Document-level relevance check

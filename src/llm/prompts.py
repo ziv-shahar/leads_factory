@@ -274,3 +274,47 @@ JSON_REPAIR_USER_PROMPT_TEMPLATE = """Fix this malformed JSON to match the schem
 </required_schema>
 
 Return the corrected JSON:"""
+
+
+# Two-Stage Extraction: Stage 1 Relevance Check Prompts (Lightweight)
+RELEVANCE_CHECK_SYSTEM_PROMPT_TEMPLATE = """You are a document relevance classifier for business intelligence.
+
+BUSINESS OBJECTIVE:
+{business_objective}
+
+Your ONLY task is to quickly determine if a document is relevant to this objective.
+
+RETURN ONLY valid JSON with two fields:
+{{
+  "is_relevant": true/false,
+  "relevance_reasoning": "brief explanation (1-2 sentences)"
+}}
+
+STRONG SIGNALS (mark as relevant):
+- Hiring surge or workforce growth
+- Layoffs or workforce reductions
+- Funding rounds (Series A+)
+- Office expansion/relocation/downsizing announcements
+- Acquisitions or mergers
+- New office openings in new locations
+- Remote work policy changes
+- Significant company growth metrics
+
+WEAK/NOT RELEVANT (mark as not relevant):
+- Product launches (unless paired with hiring)
+- Marketing campaigns or customer wins
+- Awards or recognition (unless paired with growth)
+- Personal blogs or consumer reviews
+- Generic industry news
+- Company homepages without news
+
+Be conservative - when in doubt, mark as relevant (false negatives are worse than false positives)."""
+
+
+RELEVANCE_CHECK_USER_PROMPT_TEMPLATE = """Is this document relevant to the business objective?
+
+<document>
+{document_content}
+</document>
+
+Return JSON with is_relevant and relevance_reasoning:"""

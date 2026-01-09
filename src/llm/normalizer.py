@@ -4,41 +4,59 @@ import hashlib
 from typing import Optional, Dict, Any
 from pydantic import ValidationError
 
-from src.config import LLM_PROVIDER, OPENAI_API_KEY, ANTHROPIC_API_KEY, BUSINESS_OBJECTIVE
-from src.llm.schemas import NormalizedEvent, DocumentExtraction, get_normalized_name
+from src.config import (
+    LLM_PROVIDER, OPENAI_API_KEY, ANTHROPIC_API_KEY, BUSINESS_OBJECTIVE,
+    TWO_STAGE_EXTRACTION, LLM_FILTER_PROVIDER, LLM_FILTER_MODEL,
+    LLM_EXTRACTION_PROVIDER, LLM_EXTRACTION_MODEL
+)
+from src.llm.schemas import NormalizedEvent, DocumentExtraction, RelevanceCheck, get_normalized_name
 from src.llm.prompts import (
     EXTRACTION_SYSTEM_PROMPT_TEMPLATE,
     EXTRACTION_USER_PROMPT_TEMPLATE,
     JSON_REPAIR_SYSTEM_PROMPT,
-    JSON_REPAIR_USER_PROMPT_TEMPLATE
+    JSON_REPAIR_USER_PROMPT_TEMPLATE,
+    RELEVANCE_CHECK_SYSTEM_PROMPT_TEMPLATE,
+    RELEVANCE_CHECK_USER_PROMPT_TEMPLATE
 )
 
 
 class LLMClient:
     """Abstraction for LLM providers."""
 
-    def __init__(self, provider: str = None):
+    def __init__(self, provider: str = None, model: str = None):
         self.provider = provider or LLM_PROVIDER
+        self.model = model
 
-    def complete(self, system_prompt: str, user_prompt: str, temperature: float = 0.1) -> str:
-        """Get completion from LLM."""
+    def complete(self, system_prompt: str, user_prompt: str, temperature: float = 0.1, model: str = None) -> str:
+        """Get completion from LLM.
+
+        Args:
+            system_prompt: System prompt
+            user_prompt: User prompt
+            temperature: Temperature for generation
+            model: Override model (if None, uses self.model or provider default)
+        """
+        use_model = model or self.model
+
         if self.provider == "openai":
-            return self._openai_complete(system_prompt, user_prompt, temperature)
+            return self._openai_complete(system_prompt, user_prompt, temperature, use_model)
         elif self.provider == "anthropic":
-            return self._anthropic_complete(system_prompt, user_prompt, temperature)
+            return self._anthropic_complete(system_prompt, user_prompt, temperature, use_model)
         elif self.provider == "mock":
             return self._mock_complete(system_prompt, user_prompt)
         else:
             raise ValueError(f"Unknown LLM provider: {self.provider}")
 
-    def _openai_complete(self, system_prompt: str, user_prompt: str, temperature: float) -> str:
+    def _openai_complete(self, system_prompt: str, user_prompt: str, temperature: float, model: str = None) -> str:
         """OpenAI completion."""
         try:
             from openai import OpenAI
             client = OpenAI(api_key=OPENAI_API_KEY)
 
+            use_model = model or "gpt-4o"  # Default to gpt-4o if no model specified
+
             response = client.chat.completions.create(
-                model="gpt-4o",
+                model=use_model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
@@ -50,14 +68,16 @@ class LLMClient:
         except Exception as e:
             raise RuntimeError(f"OpenAI API error: {str(e)}")
 
-    def _anthropic_complete(self, system_prompt: str, user_prompt: str, temperature: float) -> str:
+    def _anthropic_complete(self, system_prompt: str, user_prompt: str, temperature: float, model: str = None) -> str:
         """Anthropic completion."""
         try:
             from anthropic import Anthropic
             client = Anthropic(api_key=ANTHROPIC_API_KEY)
 
+            use_model = model or "claude-3-5-sonnet-20241022"  # Default to Sonnet if no model specified
+
             response = client.messages.create(
-                model="claude-3-5-sonnet-20241022",
+                model=use_model,
                 max_tokens=4096,
                 system=system_prompt,
                 messages=[
@@ -620,6 +640,126 @@ class Normalizer:
             return None
         except Exception as e:
             print(f"✗ Normalization error for {file_path}: {str(e)}")
+            return None
+
+    def check_relevance(
+        self,
+        content: str,
+        file_path: str
+    ) -> Optional[RelevanceCheck]:
+        """
+        Stage 1: Quick relevance check using cheap model.
+
+        Args:
+            content: Raw document content
+            file_path: Path to the document
+
+        Returns:
+            RelevanceCheck object or None if check fails
+        """
+        # Create LLM client for filter model
+        filter_client = LLMClient(provider=LLM_FILTER_PROVIDER, model=LLM_FILTER_MODEL)
+
+        # Build prompts
+        system_prompt = RELEVANCE_CHECK_SYSTEM_PROMPT_TEMPLATE.format(
+            business_objective=BUSINESS_OBJECTIVE
+        )
+
+        user_prompt = RELEVANCE_CHECK_USER_PROMPT_TEMPLATE.format(
+            document_content=content
+        )
+
+        try:
+            # Get LLM response
+            response = filter_client.complete(system_prompt, user_prompt)
+
+            # Parse JSON
+            data = json.loads(response)
+
+            # Validate with Pydantic
+            relevance = RelevanceCheck(**data)
+
+            return relevance
+
+        except Exception as e:
+            print(f"⚠ Relevance check error for {file_path}: {str(e)}")
+            # If relevance check fails, assume relevant (conservative)
+            return RelevanceCheck(is_relevant=True, relevance_reasoning="Relevance check failed, assuming relevant")
+
+    def normalize_document_two_stage(
+        self,
+        content: str,
+        file_path: str,
+        source: str = "unknown"
+    ) -> Optional[DocumentExtraction]:
+        """
+        Two-stage extraction: cheap relevance filter, then expensive extraction.
+
+        Stage 1: Quick relevance check with cheap model (gpt-3.5-turbo)
+        Stage 2: Full extraction with expensive model (gpt-4o) - only if relevant
+
+        Args:
+            content: Raw document content
+            file_path: Path to the document
+            source: Source identifier
+
+        Returns:
+            DocumentExtraction or None if not relevant or extraction fails
+        """
+        print(f"  → Stage 1: Checking relevance with {LLM_FILTER_MODEL}...")
+
+        # Stage 1: Relevance check
+        relevance = self.check_relevance(content, file_path)
+
+        if not relevance or not relevance.is_relevant:
+            print(f"  ✗ Not relevant: {relevance.relevance_reasoning if relevance else 'unknown'}")
+            # Return DocumentExtraction with is_relevant=False and empty events
+            return DocumentExtraction(
+                is_relevant=False,
+                relevance_reasoning=relevance.relevance_reasoning if relevance else "Not relevant",
+                events=[]
+            )
+
+        print(f"  ✓ Relevant: {relevance.relevance_reasoning}")
+        print(f"  → Stage 2: Extracting with {LLM_EXTRACTION_MODEL}...")
+
+        # Stage 2: Full extraction with expensive model
+        extraction_client = LLMClient(provider=LLM_EXTRACTION_PROVIDER, model=LLM_EXTRACTION_MODEL)
+
+        # Build system prompt with business objective
+        system_prompt = EXTRACTION_SYSTEM_PROMPT_TEMPLATE.format(
+            business_objective=BUSINESS_OBJECTIVE
+        )
+
+        # Build user prompt
+        user_prompt = EXTRACTION_USER_PROMPT_TEMPLATE.format(
+            document_content=content,
+            file_path=file_path,
+            source=source
+        )
+
+        try:
+            # Get LLM response
+            response = extraction_client.complete(system_prompt, user_prompt)
+
+            # Parse JSON
+            try:
+                data = json.loads(response)
+            except json.JSONDecodeError as e:
+                print(f"⚠ JSON decode error, attempting repair: {str(e)}")
+                data = self._repair_json(response)
+
+            # Validate with Pydantic
+            extraction = DocumentExtraction(**data)
+
+            print(f"  ✓ Extracted {len(extraction.events)} events")
+            return extraction
+
+        except ValidationError as e:
+            print(f"✗ Validation error for {file_path}: {str(e)}")
+            return None
+        except Exception as e:
+            print(f"✗ Extraction error for {file_path}: {str(e)}")
             return None
 
     def _repair_json(self, malformed_json: str) -> Dict[str, Any]:

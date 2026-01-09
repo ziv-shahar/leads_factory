@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import List
 from sqlalchemy.orm import Session
 
-from src.config import RAW_DATA_BUCKET, ENRICHMENT_ENABLED
+from src.config import RAW_DATA_BUCKET, ENRICHMENT_ENABLED, TWO_STAGE_EXTRACTION
 from src.db.session import get_db
 from src.db.models import RawEvent, Entity, Event, LeadCurrent
 from src.io.raw_reader import RawFileReader
@@ -95,12 +95,20 @@ class PipelineRunner:
             db.flush()
 
         # Normalize (extract events - may be multiple companies)
-        print("→ Normalizing document with LLM...")
-        extraction = self.normalizer.normalize_document(
-            content=content,
-            file_path=file_path,
-            source="local_bucket"
-        )
+        if TWO_STAGE_EXTRACTION:
+            print("→ Two-stage extraction (filter + extract)...")
+            extraction = self.normalizer.normalize_document_two_stage(
+                content=content,
+                file_path=file_path,
+                source="local_bucket"
+            )
+        else:
+            print("→ Normalizing document with LLM...")
+            extraction = self.normalizer.normalize_document(
+                content=content,
+                file_path=file_path,
+                source="local_bucket"
+            )
 
         if not extraction:
             raw_event.status = "FAILED"
