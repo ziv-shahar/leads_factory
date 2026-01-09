@@ -61,7 +61,7 @@ class LLMClient:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=temperature,
+                # temperature=temperature,
                 response_format={"type": "json_object"}
             )
             return response.choices[0].message.content

@@ -8,13 +8,13 @@ load_dotenv()
 
 # Project paths
 PROJECT_ROOT = Path(__file__).parent.parent
-RAW_DATA_BUCKET = PROJECT_ROOT / "raw_data_bucket"
+RAW_DATA_BUCKET = PROJECT_ROOT / "raw_data_bucket/"
 
 # Database
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://leadgen_user:leadgen_pass@localhost:5432/leadgen_db")
 
 # LLM Configuration
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "mock")  # openai, anthropic, mock
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai")  # openai, anthropic, mock
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
@@ -31,7 +31,7 @@ LLM_EXTRACTION_PROVIDER = os.getenv("LLM_EXTRACTION_PROVIDER", "openai")  # open
 LLM_EXTRACTION_MODEL = os.getenv("LLM_EXTRACTION_MODEL", "gpt-4o")  # Expensive model for extraction
 
 # Search Configuration
-SEARCH_PROVIDER = os.getenv("SEARCH_PROVIDER", "mock")  # tavily, exa, serpapi, mock
+SEARCH_PROVIDER = os.getenv("SEARCH_PROVIDER", "tavily")  # tavily, exa, serpapi, mock
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 EXA_API_KEY = os.getenv("EXA_API_KEY", "")
 SERPAPI_KEY = os.getenv("SERPAPI_KEY", "")
@@ -50,7 +50,7 @@ BUSINESS_OBJECTIVE = os.getenv(
 SCORING_TIME_DECAY_DAYS = int(os.getenv("SCORING_TIME_DECAY_DAYS", "90"))
 
 # Parallel Processing Configuration
-PARALLEL_PROCESSING = os.getenv("PARALLEL_PROCESSING", "false").lower() == "true"
+PARALLEL_PROCESSING = os.getenv("PARALLEL_PROCESSING", "true").lower() == "true"
 MAX_WORKERS = int(os.getenv("MAX_WORKERS", "4"))  # Number of parallel workers (4-8 recommended)
 RATE_LIMIT_REQUESTS_PER_MINUTE = int(os.getenv("RATE_LIMIT_REQUESTS_PER_MINUTE", "60"))  # API rate limit
 
