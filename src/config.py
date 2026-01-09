@@ -49,6 +49,11 @@ BUSINESS_OBJECTIVE = os.getenv(
 # Scoring settings
 SCORING_TIME_DECAY_DAYS = int(os.getenv("SCORING_TIME_DECAY_DAYS", "90"))
 
+# Parallel Processing Configuration
+PARALLEL_PROCESSING = os.getenv("PARALLEL_PROCESSING", "false").lower() == "true"
+MAX_WORKERS = int(os.getenv("MAX_WORKERS", "4"))  # Number of parallel workers (4-8 recommended)
+RATE_LIMIT_REQUESTS_PER_MINUTE = int(os.getenv("RATE_LIMIT_REQUESTS_PER_MINUTE", "60"))  # API rate limit
+
 # Event types (generic)
 EVENT_TYPES = [
     "funding_round",

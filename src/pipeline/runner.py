@@ -1,10 +1,16 @@
 """End-to-end pipeline orchestrator."""
 import hashlib
+import threading
+import time
 from datetime import datetime
 from typing import List
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from sqlalchemy.orm import Session
 
-from src.config import RAW_DATA_BUCKET, ENRICHMENT_ENABLED, TWO_STAGE_EXTRACTION
+from src.config import (
+    RAW_DATA_BUCKET, ENRICHMENT_ENABLED, TWO_STAGE_EXTRACTION,
+    PARALLEL_PROCESSING, MAX_WORKERS, RATE_LIMIT_REQUESTS_PER_MINUTE
+)
 from src.db.session import get_db
 from src.db.models import RawEvent, Entity, Event, LeadCurrent
 from src.io.raw_reader import RawFileReader
@@ -16,6 +22,69 @@ from src.resolve.canonicalize import canonicalize_company_name
 from src.scoring.scorer import LeadScorer
 
 
+class RateLimiter:
+    """Thread-safe rate limiter for API calls."""
+
+    def __init__(self, requests_per_minute: int):
+        self.requests_per_minute = requests_per_minute
+        self.min_interval = 60.0 / requests_per_minute if requests_per_minute > 0 else 0
+        self.last_request_time = 0
+        self.lock = threading.Lock()
+
+    def wait_if_needed(self):
+        """Wait if necessary to respect rate limit."""
+        if self.min_interval == 0:
+            return
+
+        with self.lock:
+            current_time = time.time()
+            time_since_last = current_time - self.last_request_time
+
+            if time_since_last < self.min_interval:
+                sleep_time = self.min_interval - time_since_last
+                time.sleep(sleep_time)
+
+            self.last_request_time = time.time()
+
+
+class ProgressTracker:
+    """Thread-safe progress tracker for parallel processing."""
+
+    def __init__(self, total: int):
+        self.total = total
+        self.completed = 0
+        self.processed = 0
+        self.failed = 0
+        self.skipped = 0
+        self.lock = threading.Lock()
+
+    def increment_completed(self):
+        with self.lock:
+            self.completed += 1
+
+    def increment_processed(self):
+        with self.lock:
+            self.processed += 1
+
+    def increment_failed(self):
+        with self.lock:
+            self.failed += 1
+
+    def increment_skipped(self):
+        with self.lock:
+            self.skipped += 1
+
+    def get_status(self):
+        with self.lock:
+            return {
+                'completed': self.completed,
+                'processed': self.processed,
+                'failed': self.failed,
+                'skipped': self.skipped,
+                'total': self.total
+            }
+
+
 class PipelineRunner:
     """Orchestrate the full lead intelligence pipeline."""
 
@@ -25,24 +94,43 @@ class PipelineRunner:
         self.enricher = Enricher()
         self.resolver = EntityResolver()
         self.scorer = LeadScorer()
+        self.rate_limiter = RateLimiter(RATE_LIMIT_REQUESTS_PER_MINUTE)
 
     def run(self):
         """Run the complete pipeline."""
         print("\n" + "="*80)
         print("LEAD INTELLIGENCE PIPELINE - STARTING")
+        if PARALLEL_PROCESSING:
+            print(f"MODE: PARALLEL ({MAX_WORKERS} workers)")
+        else:
+            print("MODE: SEQUENTIAL")
         print("="*80 + "\n")
 
+        # Phase 1: Discover files
+        print("Phase 1: Discovering raw files...")
+        files = self.reader.list_files()
+        print(f"✓ Found {len(files)} files in {RAW_DATA_BUCKET}\n")
+
+        if not files:
+            print("⚠ No files to process. Exiting.")
+            return
+
+        # Phase 2: Process files (parallel or sequential)
+        if PARALLEL_PROCESSING:
+            self._run_parallel(files)
+        else:
+            self._run_sequential(files)
+
+        # Phase 3: Print summary
+        print("\n" + "="*80)
+        print("PIPELINE SUMMARY")
+        print("="*80)
         with get_db() as db:
-            # Phase 1: Discover and dedupe raw files
-            print("Phase 1: Discovering raw files...")
-            files = self.reader.list_files()
-            print(f"✓ Found {len(files)} files in {RAW_DATA_BUCKET}\n")
+            self._print_summary(db)
 
-            if not files:
-                print("⚠ No files to process. Exiting.")
-                return
-
-            # Phase 2: Process each file
+    def _run_sequential(self, files: List[str]):
+        """Run pipeline sequentially (original behavior)."""
+        with get_db() as db:
             for file_path in files:
                 print("-" * 80)
                 print(f"Processing: {file_path}")
@@ -60,17 +148,96 @@ class PipelineRunner:
             # Commit all changes
             db.commit()
 
-            # Phase 3: Print summary
-            print("\n" + "="*80)
-            print("PIPELINE SUMMARY")
-            print("="*80)
-            self._print_summary(db)
+    def _run_parallel(self, files: List[str]):
+        """Run pipeline in parallel using ThreadPoolExecutor."""
+        print(f"Phase 2: Processing {len(files)} files in parallel (max {MAX_WORKERS} workers)...\n")
 
-    def _process_file(self, db: Session, file_path: str):
-        """Process a single file through the pipeline."""
+        progress = ProgressTracker(len(files))
+        print_lock = threading.Lock()  # For thread-safe printing
+
+        def process_file_wrapper(file_path: str) -> dict:
+            """Wrapper to process a file with its own database session."""
+            result = {
+                'file_path': file_path,
+                'status': 'unknown',
+                'error': None
+            }
+
+            # Each thread gets its own database session
+            with get_db() as db:
+                try:
+                    # Rate limiting
+                    self.rate_limiter.wait_if_needed()
+
+                    # Thread-safe printing
+                    with print_lock:
+                        print(f"[{progress.completed + 1}/{len(files)}] Processing: {file_path}")
+
+                    # Process file
+                    status = self._process_file(db, file_path, quiet=True)
+
+                    # Update progress
+                    if status == 'skipped':
+                        progress.increment_skipped()
+                        result['status'] = 'skipped'
+                    elif status == 'failed':
+                        progress.increment_failed()
+                        result['status'] = 'failed'
+                    else:
+                        progress.increment_processed()
+                        result['status'] = 'processed'
+
+                    progress.increment_completed()
+
+                    # Commit this thread's changes
+                    db.commit()
+
+                except Exception as e:
+                    result['status'] = 'error'
+                    result['error'] = str(e)
+                    progress.increment_failed()
+                    progress.increment_completed()
+
+                    with print_lock:
+                        print(f"✗ Error processing {file_path}: {str(e)}")
+
+            return result
+
+        # Process files in parallel
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = {executor.submit(process_file_wrapper, file_path): file_path for file_path in files}
+
+            # Wait for all to complete
+            for future in as_completed(futures):
+                result = future.result()
+
+        # Print final progress
+        status = progress.get_status()
+        print(f"\n✓ Parallel processing complete:")
+        print(f"  Processed: {status['processed']}")
+        print(f"  Skipped: {status['skipped']}")
+        print(f"  Failed: {status['failed']}")
+        print(f"  Total: {status['total']}")
+
+    def _process_file(self, db: Session, file_path: str, quiet: bool = False) -> str:
+        """Process a single file through the pipeline.
+
+        Args:
+            db: Database session
+            file_path: Path to the file to process
+            quiet: If True, suppress verbose output (for parallel processing)
+
+        Returns:
+            Status string: 'processed', 'skipped', or 'failed'
+        """
+        def _print(msg):
+            """Conditional print based on quiet mode."""
+            if not quiet:
+                print(msg)
+
         # Read file
         content, file_type = self.reader.read_file(file_path)
-        print(f"✓ Read file ({file_type}): {len(content)} chars")
+        _print(f"✓ Read file ({file_type}): {len(content)} chars")
 
         # Check if already processed (deduplication)
         content_hash = compute_content_hash(content)
@@ -78,10 +245,10 @@ class PipelineRunner:
 
         if existing:
             if existing.status == "PROCESSED":
-                print(f"⊙ File already processed (hash: {content_hash[:8]}...), skipping")
-                return
+                _print(f"⊙ File already processed (hash: {content_hash[:8]}...), skipping")
+                return 'skipped'
             else:
-                print(f"⊙ File exists but not processed, reprocessing...")
+                _print(f"⊙ File exists but not processed, reprocessing...")
                 raw_event = existing
         else:
             # Create raw event record
@@ -96,14 +263,15 @@ class PipelineRunner:
 
         # Normalize (extract events - may be multiple companies)
         if TWO_STAGE_EXTRACTION:
-            print("→ Two-stage extraction (filter + extract)...")
+            if not quiet:
+                print("→ Two-stage extraction (filter + extract)...")
             extraction = self.normalizer.normalize_document_two_stage(
                 content=content,
                 file_path=file_path,
                 source="local_bucket"
             )
         else:
-            print("→ Normalizing document with LLM...")
+            _print("→ Normalizing document with LLM...")
             extraction = self.normalizer.normalize_document(
                 content=content,
                 file_path=file_path,
@@ -113,57 +281,63 @@ class PipelineRunner:
         if not extraction:
             raw_event.status = "FAILED"
             raw_event.error = "Normalization failed"
-            print("✗ Normalization failed")
-            return
+            _print("✗ Normalization failed")
+            return 'failed'
 
         # Check relevance
         if not extraction.is_relevant:
             raw_event.status = "FAILED"
             raw_event.error = f"Document not relevant: {extraction.relevance_reasoning}"
-            print(f"⊘ Document not relevant: {extraction.relevance_reasoning}")
-            return
+            _print(f"⊘ Document not relevant: {extraction.relevance_reasoning}")
+            return 'failed'
 
         # Check if any events were extracted
         if not extraction.events:
             raw_event.status = "FAILED"
             raw_event.error = "No companies/events extracted from document"
-            print(f"⊘ No events extracted (document relevant but no actionable companies found)")
-            return
+            _print(f"⊘ No events extracted (document relevant but no actionable companies found)")
+            return 'failed'
 
-        print(f"✓ Document relevant: {extraction.relevance_reasoning}")
-        print(f"✓ Extracted {len(extraction.events)} event(s) from {len(set(e.company_name_canonical for e in extraction.events))} company(ies)")
+        _print(f"✓ Document relevant: {extraction.relevance_reasoning}")
+        _print(f"✓ Extracted {len(extraction.events)} event(s) from {len(set(e.company_name_canonical for e in extraction.events))} company(ies)")
 
         # Process each event (one per company)
         MIN_CONFIDENCE = 0.3  # Configurable threshold
         processed_count = 0
 
         for idx, normalized_event in enumerate(extraction.events, 1):
-            print(f"\n  Event {idx}/{len(extraction.events)}:")
-            print(f"  → Company: {normalized_event.company_name_raw} -> {normalized_event.company_name_canonical}")
-            print(f"  → Type: {normalized_event.event_type}")
-            print(f"  → Confidence: {normalized_event.extraction_confidence:.2f}")
+            _print(f"\n  Event {idx}/{len(extraction.events)}:")
+            _print(f"  → Company: {normalized_event.company_name_raw} -> {normalized_event.company_name_canonical}")
+            _print(f"  → Type: {normalized_event.event_type}")
+            _print(f"  → Confidence: {normalized_event.extraction_confidence:.2f}")
 
             # Check minimum confidence threshold
             if normalized_event.extraction_confidence < MIN_CONFIDENCE:
-                print(f"  ⊘ Skipped (confidence too low: {normalized_event.extraction_confidence:.2f} < {MIN_CONFIDENCE})")
+                _print(f"  ⊘ Skipped (confidence too low: {normalized_event.extraction_confidence:.2f} < {MIN_CONFIDENCE})")
                 continue
 
             # Process this event
-            self._process_event(db, normalized_event, file_path, "local_bucket")
+            self._process_event(db, normalized_event, file_path, "local_bucket", quiet=quiet)
             processed_count += 1
 
         if processed_count == 0:
             raw_event.status = "FAILED"
             raw_event.error = f"All {len(extraction.events)} events below confidence threshold"
-            print(f"\n✗ All events filtered out (low confidence)")
-            return
+            _print(f"\n✗ All events filtered out (low confidence)")
+            return 'failed'
 
         # Mark as processed
         raw_event.status = "PROCESSED"
-        print(f"\n✓ File processing complete: {processed_count}/{len(extraction.events)} events processed")
+        _print(f"\n✓ File processing complete: {processed_count}/{len(extraction.events)} events processed")
+        return 'processed'
 
-    def _process_event(self, db: Session, normalized_event, file_path: str, source: str):
+    def _process_event(self, db: Session, normalized_event, file_path: str, source: str, quiet: bool = False):
         """Process a single event for a company."""
+        def _print(msg):
+            """Conditional print based on quiet mode."""
+            if not quiet:
+                print(msg)
+
         # Canonicalize name
         canonical_name, normalized_name = canonicalize_company_name(
             normalized_event.company_name_canonical
@@ -173,7 +347,7 @@ class PipelineRunner:
         enrichment = None
 
         if ENRICHMENT_ENABLED:
-            print("→ Checking if enrichment needed...")
+            _print("→ Checking if enrichment needed...")
 
             # Try to find existing entity to check freshness
             existing_entity = db.query(Entity).filter(
@@ -187,18 +361,18 @@ class PipelineRunner:
             )
 
             if should_enrich:
-                print("→ Enriching entity...")
+                _print("→ Enriching entity...")
                 enrichment = self.enricher.enrich_entity(
                     canonical_name=canonical_name,
                     alternative_names=[normalized_event.company_name_raw]
                 )
             else:
-                print("⊙ Enrichment not needed (recent or has domain)")
+                _print("⊙ Enrichment not needed (recent or has domain)")
         else:
-            print("⊙ Enrichment disabled (set ENRICHMENT_ENABLED=true to enable)")
+            _print("⊙ Enrichment disabled (set ENRICHMENT_ENABLED=true to enable)")
 
         # Resolve entity (dedupe)
-        print("→ Resolving entity...")
+        _print("→ Resolving entity...")
         entity = self.resolver.resolve_or_create_entity(
             db=db,
             canonical_name=canonical_name,
@@ -208,7 +382,7 @@ class PipelineRunner:
         db.flush()
 
         # Create event record
-        print("→ Persisting event...")
+        _print("→ Persisting event...")
         event = Event(
             entity_id=entity.id,
             source="local_bucket",
@@ -228,13 +402,13 @@ class PipelineRunner:
         )
         db.add(event)
         db.flush()
-        print(f"✓ Event persisted: {event.id}")
+        _print(f"✓ Event persisted: {event.id}")
 
         # Score and materialize lead
-        print(f"  → Scoring lead for {canonical_name}...")
+        _print(f"  → Scoring lead for {canonical_name}...")
         lead = self.scorer.score_and_materialize_lead(db, entity)
         db.flush()
-        print(f"  ✓ Event processed for {canonical_name}")
+        _print(f"  ✓ Event processed for {canonical_name}")
 
     def _parse_date(self, date_str: str) -> datetime:
         """Parse date string to datetime."""
