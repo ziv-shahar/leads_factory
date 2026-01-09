@@ -110,21 +110,23 @@ class LeadScorer:
                 # Base score from event type
                 event_score = self.event_scores.get(event.event_type, 0)
 
-                # Apply time decay
+                # Apply time decay and confidence multiplier
                 decay_multiplier = self._calculate_time_decay(event.event_time or event.ingest_time)
-                decayed_score = event_score * decay_multiplier
+                confidence = event.extraction_confidence
+                decayed_score = event_score * decay_multiplier * confidence
 
                 group_event_scores.append(decayed_score)
 
-                # Track confidence
-                confidence_scores.append(event.extraction_confidence)
+                # Track confidence for aggregate
+                confidence_scores.append(confidence)
 
                 # Score dynamic signals for this event
                 event_signal_score = 0
                 for signal in event.dynamic_signals:
                     signal_type = signal.get("signal_type", "")
                     signal_score = self.signal_scores.get(signal_type, 3)  # Default +3
-                    signal_score = signal_score * decay_multiplier
+                    # Apply both time decay and confidence to signals
+                    signal_score = signal_score * decay_multiplier * confidence
                     event_signal_score += signal_score
 
                 group_signal_scores.append(event_signal_score)
