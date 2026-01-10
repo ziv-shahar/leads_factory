@@ -3,16 +3,16 @@ import re
 from typing import Tuple
 
 
-def canonicalize_company_name(raw_name: str) -> Tuple[str, str]:
+def canonicalize_entity_name(raw_name: str) -> Tuple[str, str]:
     """
-    Canonicalize company name into two forms for matching.
+    Canonicalize entity name into two forms for matching - works for all entity types.
 
     Args:
-        raw_name: Raw company name from source
+        raw_name: Raw entity name from source (company, government, nonprofit, etc.)
 
     Returns:
         Tuple of (canonical_name, normalized_name)
-        - canonical_name: UPPERCASE, legal suffixes removed, whitespace normalized
+        - canonical_name: UPPERCASE, suffixes removed, whitespace normalized
         - normalized_name: All non-alphanumeric removed (for fuzzy matching)
     """
     if not raw_name:
@@ -21,8 +21,18 @@ def canonicalize_company_name(raw_name: str) -> Tuple[str, str]:
     # Start with uppercase
     canonical = raw_name.upper().strip()
 
-    # Remove common legal suffixes (must be at end)
+    # Remove common prefixes
+    prefixes = [
+        r'^THE\s+',
+        r'^U\.S\.\s+',
+        r'^UNITED\s+STATES\s+',
+    ]
+    for prefix_pattern in prefixes:
+        canonical = re.sub(prefix_pattern, '', canonical)
+
+    # Remove common suffixes (must be at end) - covers all entity types
     suffixes = [
+        # Company suffixes
         r'\s+INC\.?$',
         r'\s+INCORPORATED$',
         r'\s+LLC\.?$',
@@ -37,6 +47,27 @@ def canonicalize_company_name(raw_name: str) -> Tuple[str, str]:
         r'\s+L\.P\.?$',
         r'\s+LLP\.?$',
         r'\s+L\.L\.P\.?$',
+        r'\s+PLC\.?$',
+        r'\s+GMBH$',
+
+        # Government suffixes
+        r'\s+AGENCY$',
+        r'\s+ADMINISTRATION$',
+        r'\s+DEPARTMENT$',
+        r'\s+DEPT\.?$',
+        r'\s+BUREAU$',
+        r'\s+COMMISSION$',
+        r'\s+AUTHORITY$',
+        r'\s+BOARD$',
+        r'\s+OFFICE$',
+        r'\s+SERVICE$',
+
+        # Nonprofit suffixes
+        r'\s+FOUNDATION$',
+        r'\s+TRUST$',
+        r'\s+SOCIETY$',
+        r'\s+ASSOCIATION$',
+        r'\s+INSTITUTE$',
     ]
 
     for suffix_pattern in suffixes:
@@ -53,6 +84,12 @@ def canonicalize_company_name(raw_name: str) -> Tuple[str, str]:
     normalized = re.sub(r'[^A-Z0-9]', '', canonical)
 
     return canonical, normalized
+
+
+# Keep old function name for backward compatibility
+def canonicalize_company_name(raw_name: str) -> Tuple[str, str]:
+    """Legacy function name - use canonicalize_entity_name instead."""
+    return canonicalize_entity_name(raw_name)
 
 
 def extract_domain_from_url(url: str) -> str:

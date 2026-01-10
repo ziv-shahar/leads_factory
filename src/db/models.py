@@ -30,17 +30,58 @@ class RawEvent(Base):
 
 
 class Entity(Base):
-    """Deduped entities (companies, orgs, projects, etc.)."""
+    """Universal entity model - works for companies, governments, contractors, nonprofits, etc."""
     __tablename__ = "entities"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # Core fields (work for ANY entity)
     canonical_name = Column(String(512), nullable=False)  # e.g., "ACME CLOUD"
     normalized_name = Column(String(512), nullable=False)  # e.g., "ACMECLOUD" (no punct/spaces)
-    domain = Column(String(255), nullable=True, unique=True)  # Best global identifier
-    website_url = Column(String(1024), nullable=True)
-    linkedin_url = Column(String(1024), nullable=True)
-    hq_city = Column(String(255), nullable=True)  # Headquarters city
-    hq_state = Column(String(255), nullable=True)  # Headquarters state/country
+    domain = Column(String(255), nullable=True, unique=True)  # Works for .com, .gov, .org, etc.
+
+    # Classification (informational label, not a logic driver)
+    entity_type = Column(String(50), nullable=True)  # "company", "government_agency", "municipality", "contractor", "nonprofit"
+
+    # Flexible storage for ANY entity-specific data
+    metadata = Column(JSONB, nullable=False, default=dict)
+    """
+    Flexible JSONB storage for entity-specific information. Examples:
+
+    For companies:
+    {
+      "website_url": "https://acme.com",
+      "linkedin_url": "https://linkedin.com/company/acme",
+      "hq_city": "San Francisco",
+      "hq_state": "CA",
+      "industry": "Cloud Computing",
+      "employee_count": 500
+    }
+
+    For government agencies:
+    {
+      "website_url": "https://www.gsa.gov",
+      "gov_domain": "gsa.gov",
+      "agency_code": "GSA",
+      "jurisdiction": "federal",
+      "parent_agency": "Independent Agency",
+      "hq_city": "Washington",
+      "hq_state": "DC"
+    }
+
+    For contractors:
+    {
+      "website_url": "https://acmeconstruction.com",
+      "linkedin_url": "...",
+      "sam_gov_uei": "ABC123DEF456",
+      "duns_number": "123456789",
+      "cage_code": "1A2B3",
+      "naics_codes": ["236220", "238210"],
+      "hq_city": "Miami",
+      "hq_state": "FL"
+    }
+    """
+
     last_enriched_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
@@ -52,6 +93,7 @@ class Entity(Base):
         Index('idx_entities_canonical_name', 'canonical_name'),
         Index('idx_entities_normalized_name', 'normalized_name'),
         Index('idx_entities_domain', 'domain'),
+        Index('idx_entities_entity_type', 'entity_type'),
     )
 
 

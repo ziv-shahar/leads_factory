@@ -1,0 +1,18 @@
+# Merge configuration for GSA Lease Opportunity 36C248-25-R-0110
+# This file tells the pipeline to merge all documents in this folder before LLM processing
+#
+# Format:
+#   - Lines starting with # are comments
+#   - Patterns use glob syntax (* for wildcard)
+#   - Patterns starting with ! are exclusions
+
+# Include all solicitation documents
+*.pdf
+*.docx
+*.xlsx
+
+# Exclude exhibits that are templates or forms (not specific to this opportunity)
+!*Template*.pdf
+!*GSA_Form*.pdf
+
+# Note: merge.txt itself is automatically excluded

@@ -35,10 +35,27 @@ class KeyFact(BaseModel):
 
 
 class NormalizedEvent(BaseModel):
-    """Strict schema for normalized event extraction for a single company."""
-    # Core identification
-    company_name_raw: str = Field(..., description="Company name exactly as it appears in source")
-    company_name_canonical: str = Field(..., description="Normalized company name (UPPERCASE, legal suffixes removed)")
+    """Universal event extraction schema - works for any entity type."""
+    # Core entity identification
+    entity_name_raw: str = Field(..., description="Entity name exactly as it appears in source")
+    entity_name_canonical: str = Field(..., description="Normalized entity name (UPPERCASE, legal suffixes removed)")
+
+    # Optional: LLM infers entity type if clear from context
+    entity_type: Optional[str] = Field(
+        None,
+        description="Entity type if identifiable: company, government_agency, municipality, contractor, nonprofit, etc. Leave null if unclear."
+    )
+
+    # Flexible entity metadata - LLM extracts what's relevant
+    entity_metadata: Optional[Dict[str, Any]] = Field(
+        None,
+        description="""Any identifying information about the entity. Examples:
+        - For companies: website_url, linkedin_url, industry, employee_count
+        - For government: agency_code, jurisdiction (federal/state/local), parent_agency, gov_domain
+        - For contractors: sam_gov_uei, duns_number, cage_code, naics_codes
+        - Common: hq_city, hq_state, phone, address
+        Extract whatever is present in the document."""
+    )
 
     # Event classification
     event_type: str = Field(..., description="Event type from predefined list")
@@ -69,7 +86,7 @@ class NormalizedEvent(BaseModel):
             return "other"
         return v
 
-    @field_validator('company_name_canonical')
+    @field_validator('entity_name_canonical')
     @classmethod
     def canonicalize_name(cls, v):
         """Ensure canonical name is uppercase and normalized."""
@@ -79,19 +96,34 @@ class NormalizedEvent(BaseModel):
         # Uppercase
         canonical = v.upper().strip()
 
-        # Remove common legal suffixes
+        # Remove common suffixes (works for all entity types)
         suffixes = [
+            # Company suffixes
             ' INC', ' INC.', ' INCORPORATED',
             ' LLC', ' LLC.', ' L.L.C', ' L.L.C.',
             ' LTD', ' LTD.', ' LIMITED',
             ' CORP', ' CORP.', ' CORPORATION',
             ' CO', ' CO.', ' COMPANY',
-            ' LP', ' L.P.', ' LLP', ' L.L.P.'
+            ' LP', ' L.P.', ' LLP', ' L.L.P.',
+            ' PLC', ' GMBH',
+
+            # Government suffixes
+            ' AGENCY', ' ADMINISTRATION', ' DEPARTMENT', ' DEPT', ' DEPT.',
+            ' BUREAU', ' COMMISSION', ' AUTHORITY', ' BOARD', ' OFFICE', ' SERVICE',
+
+            # Nonprofit suffixes
+            ' FOUNDATION', ' TRUST', ' SOCIETY', ' ASSOCIATION', ' INSTITUTE'
         ]
 
         for suffix in suffixes:
             if canonical.endswith(suffix):
                 canonical = canonical[:-len(suffix)].strip()
+
+        # Remove common prefixes
+        prefixes = ['THE ', 'U.S. ', 'UNITED STATES ']
+        for prefix in prefixes:
+            if canonical.startswith(prefix):
+                canonical = canonical[len(prefix):].strip()
 
         # Normalize common patterns
         canonical = canonical.replace(' AND ', ' & ')
@@ -122,24 +154,25 @@ class DocumentExtraction(BaseModel):
 
 
 class EnrichmentResult(BaseModel):
-    """Result from enrichment LLM step."""
-    official_domain: Optional[str] = Field(None, description="Official domain (e.g., 'acmecloud.io')")
-    website_url: Optional[str] = Field(None, description="Full website URL")
-    linkedin_url: Optional[str] = Field(None, description="LinkedIn company page URL")
-    hq_city: Optional[str] = Field(None, description="Headquarters city")
-    hq_state: Optional[str] = Field(None, description="Headquarters state/country")
+    """Universal enrichment result - works for any entity type."""
+
+    # Core field (works for everyone)
+    domain: Optional[str] = Field(None, description="Primary domain (.com, .gov, .org, etc.)")
+
+    # Flexible metadata - LLM extracts what it finds
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="""Flexible storage for entity information. Examples:
+        - Common: website_url, hq_city, hq_state, address, phone
+        - Companies: linkedin_url, industry, employee_count, founded_year
+        - Government: agency_code, jurisdiction (federal/state/local), parent_agency, gov_domain
+        - Contractors: sam_gov_uei, duns_number, cage_code, naics_codes
+        - Nonprofits: ein, tax_status
+        Extract whatever is available in search results."""
+    )
+
     enrichment_confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence in enrichment")
     reasoning: Optional[str] = Field(None, description="Why these values were chosen")
-
-    @field_validator('hq_city', 'hq_state', mode='before')
-    @classmethod
-    def convert_empty_list_to_none(cls, v):
-        """Convert empty lists to None for string fields (LLM sometimes returns [])."""
-        if isinstance(v, list) and len(v) == 0:
-            return None
-        if isinstance(v, list):
-            return v[0] if v else None
-        return v
 
 
 # Helper function to get normalized name (no punctuation/spaces)

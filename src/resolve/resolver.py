@@ -1,5 +1,5 @@
 """Entity resolution with domain-first matching."""
-from typing import Optional
+from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from rapidfuzz import fuzz
 
@@ -9,7 +9,7 @@ from src.llm.schemas import EnrichmentResult
 
 
 class EntityResolver:
-    """Resolve company names to canonical entities with deduplication."""
+    """Resolve entity names to canonical entities with deduplication - works for all entity types."""
 
     def __init__(self, fuzzy_threshold: int = 85):
         """
@@ -25,6 +25,8 @@ class EntityResolver:
         db: Session,
         canonical_name: str,
         normalized_name: str,
+        entity_type: Optional[str] = None,
+        entity_metadata: Optional[Dict[str, Any]] = None,
         enrichment: Optional[EnrichmentResult] = None
     ) -> Entity:
         """
@@ -32,37 +34,55 @@ class EntityResolver:
 
         Resolution strategy:
         1. If enrichment has domain -> lookup by domain
-        2. Else exact match on canonical_name
-        3. Else fuzzy match on normalized_name
-        4. Else create new entity
+        2. If entity_metadata has domain -> lookup by domain
+        3. Else exact match on canonical_name
+        4. Else fuzzy match on normalized_name
+        5. Else create new entity
 
         Args:
             db: Database session
-            canonical_name: Canonical company name
+            canonical_name: Canonical entity name
             normalized_name: Normalized name (alphanumeric only)
+            entity_type: Optional entity type (company, government_agency, etc.)
+            entity_metadata: Optional entity metadata from extraction
             enrichment: Optional enrichment data
 
         Returns:
             Existing or newly created Entity
         """
-        # Strategy 1: Domain-first matching (most reliable)
-        if enrichment and enrichment.official_domain:
-            domain = extract_domain_from_url(enrichment.official_domain)
+        # Strategy 1: Domain-first matching (most reliable) - from enrichment
+        if enrichment and enrichment.domain:
+            domain = extract_domain_from_url(enrichment.domain)
             if domain:
                 entity = db.query(Entity).filter(Entity.domain == domain).first()
                 if entity:
                     print(f"  ✓ Matched entity by domain: {domain} -> {entity.canonical_name}")
                     # Update enrichment fields if we have new data
-                    self._update_entity_enrichment(entity, enrichment)
+                    self._update_entity_enrichment(entity, entity_type, entity_metadata, enrichment)
                     return entity
+
+        # Strategy 1b: Domain from entity_metadata (from extraction)
+        if entity_metadata:
+            domain_from_metadata = (
+                entity_metadata.get('domain') or
+                entity_metadata.get('gov_domain') or
+                entity_metadata.get('official_domain')
+            )
+            if domain_from_metadata:
+                domain = extract_domain_from_url(domain_from_metadata)
+                if domain:
+                    entity = db.query(Entity).filter(Entity.domain == domain).first()
+                    if entity:
+                        print(f"  ✓ Matched entity by domain (from metadata): {domain} -> {entity.canonical_name}")
+                        self._update_entity_enrichment(entity, entity_type, entity_metadata, enrichment)
+                        return entity
 
         # Strategy 2: Exact canonical name match
         entity = db.query(Entity).filter(Entity.canonical_name == canonical_name).first()
         if entity:
             print(f"  ✓ Matched entity by canonical name: {canonical_name}")
             # Update enrichment if we have new data
-            if enrichment:
-                self._update_entity_enrichment(entity, enrichment)
+            self._update_entity_enrichment(entity, entity_type, entity_metadata, enrichment)
             return entity
 
         # Strategy 3: Fuzzy match on normalized name
@@ -80,56 +100,67 @@ class EntityResolver:
                         print(f"    Updated canonical name: {candidate.canonical_name} -> {canonical_name}")
                         candidate.canonical_name = canonical_name
 
-                    if enrichment:
-                        self._update_entity_enrichment(candidate, enrichment)
-
+                    self._update_entity_enrichment(candidate, entity_type, entity_metadata, enrichment)
                     return candidate
 
         # Strategy 4: Create new entity
         print(f"  ✓ Creating new entity: {canonical_name}")
         entity = Entity(
             canonical_name=canonical_name,
-            normalized_name=normalized_name
+            normalized_name=normalized_name,
+            entity_type=entity_type,
+            metadata=entity_metadata or {}
         )
 
         if enrichment:
-            self._update_entity_enrichment(entity, enrichment)
+            self._update_entity_enrichment(entity, entity_type, entity_metadata, enrichment)
 
         db.add(entity)
         db.flush()  # Get entity.id without committing
 
         return entity
 
-    def _update_entity_enrichment(self, entity: Entity, enrichment: EnrichmentResult):
-        """Update entity with enrichment data."""
+    def _update_entity_enrichment(
+        self,
+        entity: Entity,
+        entity_type: Optional[str],
+        entity_metadata: Optional[Dict[str, Any]],
+        enrichment: Optional[EnrichmentResult]
+    ):
+        """Update entity with enrichment data and extracted metadata."""
         from datetime import datetime
 
         updated = False
 
-        # Update domain (only if not set or higher confidence)
-        if enrichment.official_domain and not entity.domain:
-            entity.domain = extract_domain_from_url(enrichment.official_domain)
+        # Update entity type if provided and not already set
+        if entity_type and not entity.entity_type:
+            entity.entity_type = entity_type
             updated = True
 
-        # Update website
-        if enrichment.website_url and not entity.website_url:
-            entity.website_url = enrichment.website_url
+        # Merge entity_metadata from extraction
+        if entity_metadata:
+            if entity.metadata is None:
+                entity.metadata = {}
+            for key, value in entity_metadata.items():
+                if value is not None and key not in entity.metadata:
+                    entity.metadata[key] = value
+                    updated = True
+
+        # Update domain from enrichment (only if not already set)
+        if enrichment and enrichment.domain and not entity.domain:
+            entity.domain = extract_domain_from_url(enrichment.domain)
             updated = True
 
-        # Update LinkedIn
-        if enrichment.linkedin_url and not entity.linkedin_url:
-            entity.linkedin_url = enrichment.linkedin_url
-            updated = True
-
-        # Update HQ location (city and state)
-        if enrichment.hq_city and not entity.hq_city:
-            entity.hq_city = enrichment.hq_city
-            updated = True
-        if enrichment.hq_state and not entity.hq_state:
-            entity.hq_state = enrichment.hq_state
-            updated = True
+        # Merge enrichment metadata
+        if enrichment and enrichment.metadata:
+            if entity.metadata is None:
+                entity.metadata = {}
+            for key, value in enrichment.metadata.items():
+                if value is not None and key not in entity.metadata:
+                    entity.metadata[key] = value
+                    updated = True
 
         # Update enrichment timestamp
-        if updated:
+        if updated and enrichment:
             entity.last_enriched_at = datetime.utcnow()
-            print(f"    Enriched entity with: domain={entity.domain}, website={entity.website_url}")
+            print(f"    Enriched entity with: domain={entity.domain}, metadata_keys={list(entity.metadata.keys())}")

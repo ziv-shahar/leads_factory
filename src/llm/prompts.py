@@ -1,11 +1,11 @@
 """LLM prompts for extraction and enrichment."""
 
-EXTRACTION_SYSTEM_PROMPT_TEMPLATE = """You are a professional business intelligence analyst extracting structured information from documents.
+EXTRACTION_SYSTEM_PROMPT_TEMPLATE = """You are an intelligent document analyzer that extracts information about ANY type of entity (companies, government agencies, municipalities, contractors, nonprofits, etc.) and their activities.
 
 BUSINESS OBJECTIVE:
 {business_objective}
 
-Your task is to extract event information about companies/organizations that are RELEVANT to this objective.
+Your task is to extract event information about entities that are RELEVANT to this objective.
 
 CRITICAL RULES:
 1. Return ONLY valid JSON matching the schema - no additional text, no markdown code blocks
@@ -85,24 +85,40 @@ Examples:
   → 2 events (acquisition with layoffs as dynamic_signal, or separate acquisition + layoffs events)
   → Prefer 2 events if layoffs are significant enough (30% is major)
 
-EVENT TYPES (use these exactly):
-- funding_round
-- partnership
-- expansion
-- product_launch
-- acquisition
-- hiring_surge
-- layoffs
-- leadership_change
-- compliance_issue
-- award_recognition
-- technology_adoption
-- market_entry
-- other
+EVENT TYPES (use these - work for any entity type):
+- expansion: Growing, opening new locations, leasing space
+- contraction: Downsizing, closing locations, reducing space
+- funding: Raising money, receiving grants, budget allocation
+- hiring_surge: Significant hiring or workforce changes
+- layoffs: Workforce reductions
+- contract_awarded: Contracts, bids, procurement
+- permit_issued: Building permits, regulatory approvals
+- partnership: Collaborations, agreements
+- acquisition: Mergers, acquisitions
+- product_launch: New products, services, initiatives
+- leadership_change: Executive changes
+- compliance_issue: Regulatory or legal issues
+- award_recognition: Awards, certifications, recognition
+- technology_adoption: Technology or infrastructure changes
+- market_entry: Entering new markets or regions
+- other: Anything else relevant to space needs
 
-COMPANY NAME RULES:
-- company_name_raw: Extract EXACTLY as it appears in the document
-- company_name_canonical: Convert to UPPERCASE, remove legal suffixes (INC/LLC/LTD/CORP/CO), normalize whitespace
+ENTITY IDENTIFICATION RULES:
+- entity_name_raw: Extract EXACTLY as it appears in the document
+- entity_name_canonical: Convert to UPPERCASE, remove suffixes (INC/LLC/AGENCY/DEPT/etc), normalize whitespace
+- entity_type: Identify if clear from context (company, government_agency, municipality, contractor, nonprofit). Leave null if unclear.
+- entity_metadata: Extract ANY identifying information present:
+  * Common: website_url, hq_city, hq_state, phone, address
+  * Companies: linkedin_url, industry, employee_count
+  * Government: agency_code (GSA, VA, etc.), jurisdiction (federal/state/local), parent_agency, gov_domain
+  * Contractors: sam_gov_uei, duns_number, cage_code, naics_codes
+  * Nonprofits: ein, tax_status
+
+Examples of entity extraction:
+- "Acme Cloud Inc raised $50M" → entity_name_raw="Acme Cloud Inc", entity_name_canonical="ACME CLOUD", entity_type="company"
+- "GSA seeks office space in Austin" → entity_name_raw="GSA", entity_name_canonical="GENERAL SERVICES ADMINISTRATION", entity_type="government_agency", entity_metadata={"agency_code": "GSA", "jurisdiction": "federal"}
+- "Miami-Dade County issued permit" → entity_name_raw="Miami-Dade County", entity_name_canonical="MIAMI-DADE COUNTY", entity_type="municipality"
+- "Acme Construction (DUNS: 123456789) awarded contract" → entity_name_raw="Acme Construction", entity_type="contractor", entity_metadata={"duns_number": "123456789"}
 
 LOCATION EXTRACTION (CRITICAL):
 Extract the location where THIS SPECIFIC EVENT occurred, NOT the company's headquarters location.
@@ -147,19 +163,27 @@ Return a JSON object with this structure:
   "relevance_reasoning": "explain why this is/isn't relevant to the business objective",
   "events": [
     {{
-      "company_name_raw": "exact company name from document",
-      "company_name_canonical": "UPPERCASE NORMALIZED NAME",
+      "entity_name_raw": "exact entity name from document",
+      "entity_name_canonical": "UPPERCASE NORMALIZED NAME",
+      "entity_type": "company/government_agency/municipality/contractor/nonprofit or null",
+      "entity_metadata": {{
+        "website_url": "optional",
+        "agency_code": "optional (e.g., GSA, VA)",
+        "jurisdiction": "optional (federal/state/local)",
+        "duns_number": "optional",
+        "any_other_identifying_info": "extract whatever is present"
+      }},
       "event_type": "one of the event types listed above",
-      "summary": "brief 1-2 sentence summary of what happened to THIS specific company",
+      "summary": "brief 1-2 sentence summary of what happened to THIS specific entity",
       "extraction_confidence": 0.0-1.0,
       "missing_fields": ["list", "of", "missing", "fields"],
       "key_facts": {{
-        "amount": "string or null (e.g., '$50M', '100 employees')",
+        "amount": "string or null (e.g., '$50M', '100 employees', '50,000 sq ft')",
         "city": "string or null - city where THIS EVENT occurred (e.g., 'Los Angeles')",
         "state": "string or null - state/country where THIS EVENT occurred (e.g., 'CA' or 'United Kingdom')",
         "people": ["array of names"] or null,
         "dates": ["array of date strings"] or null,
-        "companies": ["array of company names"] or null,
+        "companies": ["array of related entity names"] or null,
         "products": ["array of product names"] or null
       }},
       "source_url": "optional URL",
@@ -177,57 +201,74 @@ Return a JSON object with this structure:
 
 IMPORTANT:
 - If is_relevant=false, return empty events array: "events": []
-- If document mentions multiple companies, create separate event objects for each
-- Each event should be from the perspective of that company
-- Cross-reference related companies in key_facts.companies
+- If document mentions multiple entities, create separate event objects for each
+- Each event should be from the perspective of that entity
+- Cross-reference related entities in key_facts.companies
 - For optional string fields (amount, city, state, source_url, event_date): use null, NOT empty array []
 - For optional array fields (people, dates, companies, products): use null or empty array []
-- CRITICAL: Extract city/state where EVENT happened, NOT company HQ (unless event happened at HQ)
+- For entity_metadata: include whatever identifying info is present, use null for missing fields
+- CRITICAL: Extract city/state where EVENT happened, NOT entity HQ (unless event happened at HQ)
 
 JSON OUTPUT:"""
 
 
-ENRICHMENT_SYSTEM_PROMPT = """You are a company identification specialist. Given a company name and web search results, extract the company's official online presence.
+ENRICHMENT_SYSTEM_PROMPT = """You are an entity identification specialist. Given an entity name and web search results, extract the entity's official online presence and identifying information.
 
 CRITICAL RULES:
 1. Return ONLY valid JSON - no additional text, no markdown
-2. Focus on finding the OFFICIAL domain/website
+2. Focus on finding OFFICIAL information (domains, websites, identifiers)
 3. Verify information consistency across sources
 4. Be conservative - if uncertain, set confidence low and explain in reasoning
-5. Domain should be just the domain (e.g., "acmecloud.io"), not full URL
+5. Domain should be just the domain (e.g., "acmecloud.io", "gsa.gov"), not full URL
+6. Extract whatever information is available - works for companies, government, contractors, nonprofits
 
-DOMAIN EXTRACTION:
-- Extract the primary domain (e.g., "acmecloud.io" not "www.acmecloud.io")
-- Verify it matches the company name
-- Prefer .com, .io, .ai for tech companies; .org for nonprofits; country TLDs for local companies
+DOMAIN EXTRACTION (works for all entity types):
+- Extract primary domain: "acmecloud.io", "gsa.gov", "stanford.edu", "redcross.org"
+- Verify it matches the entity name
+- Common patterns: .com/.io/.ai (tech), .gov (government), .org (nonprofit), .edu (education)
 
-LINKEDIN:
-- Extract the full company page URL (e.g., "https://www.linkedin.com/company/acme-cloud")
-- Must be /company/ page, not personal profiles
+METADATA EXTRACTION (extract whatever is available):
 
-HEADQUARTERS LOCATION EXTRACTION:
-Extract the company's headquarters location in separate city and state fields, using the SAME format as event locations:
-- For US locations: hq_city="Mountain View", hq_state="CA" (use 2-letter state code)
-- For international: hq_city="London", hq_state="United Kingdom" (use full country name)
-- If HQ location not found in search results: hq_city=null, hq_state=null
+Common fields (all entity types):
+- website_url: Full website URL
+- hq_city, hq_state: Headquarters location
+  * US: hq_city="Austin", hq_state="TX" (2-letter code)
+  * International: hq_city="London", hq_state="United Kingdom"
+- phone, address: Contact information
 
-Examples:
-- "Based in San Francisco, California" → hq_city="San Francisco", hq_state="CA"
-- "Headquarters in Austin, TX" → hq_city="Austin", hq_state="TX"
-- "London-based startup" → hq_city="London", hq_state="United Kingdom"
-- "Tokyo office" → hq_city="Tokyo", hq_state="Japan"
+For companies:
+- linkedin_url: LinkedIn company page (https://linkedin.com/company/...)
+- industry: Industry/sector
+- employee_count: Number of employees
+- founded_year: Year founded
+
+For government entities:
+- agency_code: Abbreviation (GSA, VA, EPA, FBI)
+- gov_domain: Official .gov domain
+- jurisdiction: federal, state, or local
+- parent_agency: Parent department if applicable
+
+For contractors:
+- sam_gov_uei: SAM.gov Unique Entity ID
+- duns_number: DUNS number
+- cage_code: CAGE code
+- naics_codes: Industry classification codes (array)
+
+For nonprofits:
+- ein: Employer Identification Number
+- tax_status: 501(c)(3), etc.
 
 CONFIDENCE SCORING:
-- 1.0: Perfect match, multiple consistent sources
+- 1.0: Perfect match, multiple consistent sources, well-known entity
 - 0.8-0.9: Strong match, good source quality
 - 0.6-0.7: Likely match, some uncertainty
 - 0.4-0.5: Weak match, significant uncertainty
 - <0.4: Very uncertain, conflicting information"""
 
 
-ENRICHMENT_USER_PROMPT_TEMPLATE = """Find official web presence for this company:
+ENRICHMENT_USER_PROMPT_TEMPLATE = """Find official web presence and identifying information for this entity:
 
-Company Name: {canonical_name}
+Entity Name: {canonical_name}
 Alternative Names: {alternative_names}
 
 <search_results>
@@ -236,19 +277,57 @@ Alternative Names: {alternative_names}
 
 Return a JSON object with these REQUIRED fields:
 {{
-  "official_domain": "domain.com or null",
-  "website_url": "https://... or null",
-  "linkedin_url": "https://linkedin.com/company/... or null",
-  "hq_city": "string or null - headquarters city (e.g., 'San Francisco')",
-  "hq_state": "string or null - headquarters state/country (e.g., 'CA' or 'United Kingdom')",
+  "domain": "domain.com or gsa.gov or null",
+  "metadata": {{
+    "website_url": "https://... or null",
+    "hq_city": "string or null (e.g., 'San Francisco', 'Washington')",
+    "hq_state": "string or null (e.g., 'CA', 'DC', 'United Kingdom')",
+    "linkedin_url": "optional - for companies",
+    "agency_code": "optional - for government (e.g., 'GSA', 'VA')",
+    "jurisdiction": "optional - federal/state/local",
+    "duns_number": "optional - for contractors",
+    "any_other_identifying_info": "extract whatever is found in search results"
+  }},
   "enrichment_confidence": 0.0-1.0,
   "reasoning": "why these values were chosen"
 }}
 
+EXAMPLES:
+
+Company:
+{{
+  "domain": "acmecloud.io",
+  "metadata": {{
+    "website_url": "https://acmecloud.io",
+    "linkedin_url": "https://linkedin.com/company/acme-cloud",
+    "hq_city": "San Francisco",
+    "hq_state": "CA",
+    "industry": "Cloud Computing"
+  }},
+  "enrichment_confidence": 0.95,
+  "reasoning": "Clear match across multiple sources"
+}}
+
+Government Agency:
+{{
+  "domain": "gsa.gov",
+  "metadata": {{
+    "website_url": "https://www.gsa.gov",
+    "gov_domain": "gsa.gov",
+    "agency_code": "GSA",
+    "jurisdiction": "federal",
+    "hq_city": "Washington",
+    "hq_state": "DC"
+  }},
+  "enrichment_confidence": 1.0,
+  "reasoning": "Well-known federal agency"
+}}
+
 IMPORTANT:
-- For optional string fields (official_domain, website_url, linkedin_url, hq_city, hq_state): use null, NOT empty array []
-- Use 2-letter state codes for US (CA, NY, TX, etc.)
-- Use full country names for international (United Kingdom, Japan, Germany, etc.)
+- Use null for missing fields, NOT empty array []
+- Use 2-letter state codes for US (CA, NY, TX, DC, etc.)
+- Use full country names for international (United Kingdom, Japan, etc.)
+- Extract whatever identifying info is available in search results
 
 JSON OUTPUT:"""
 

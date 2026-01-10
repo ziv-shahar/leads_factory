@@ -54,21 +54,29 @@ PARALLEL_PROCESSING = os.getenv("PARALLEL_PROCESSING", "true").lower() == "true"
 MAX_WORKERS = int(os.getenv("MAX_WORKERS", "4"))  # Number of parallel workers (4-8 recommended)
 RATE_LIMIT_REQUESTS_PER_MINUTE = int(os.getenv("RATE_LIMIT_REQUESTS_PER_MINUTE", "60"))  # API rate limit
 
-# Event types (generic)
+# Event types (universal - work for all entity types)
 EVENT_TYPES = [
-    "funding_round",
-    "partnership",
-    "expansion",
-    "product_launch",
-    "acquisition",
-    "hiring_surge",
-    "layoffs",
-    "leadership_change",
-    "compliance_issue",
-    "award_recognition",
-    "technology_adoption",
-    "market_entry",
-    "other"
+    # Generic events (work for companies, governments, contractors, etc.)
+    "expansion",  # Growing, opening new locations, leasing space
+    "contraction",  # Downsizing, closing locations, reducing space
+    "funding",  # Raising money, receiving grants, budget allocation (formerly funding_round)
+    "hiring_surge",  # Significant hiring or workforce changes
+    "layoffs",  # Workforce reductions
+    "contract_awarded",  # Contracts, bids, procurement
+    "permit_issued",  # Building permits, regulatory approvals
+    "partnership",  # Collaborations, agreements
+    "acquisition",  # Mergers, acquisitions
+    "product_launch",  # New products, services, initiatives
+    "leadership_change",  # Executive changes
+    "compliance_issue",  # Regulatory or legal issues
+    "award_recognition",  # Awards, certifications, recognition
+    "technology_adoption",  # Technology or infrastructure changes
+    "market_entry",  # Entering new markets or regions
+
+    # Legacy events (keep for backward compatibility)
+    "funding_round",  # Alias for "funding"
+
+    "other"  # Catch-all
 ]
 
 # Lead statuses
