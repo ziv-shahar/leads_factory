@@ -106,20 +106,29 @@ class PipelineRunner:
             print("MODE: SEQUENTIAL")
         print("="*80 + "\n")
 
-        # Phase 1: Discover files
+        # Phase 1: Discover files (with merge support)
         print("Phase 1: Discovering raw files...")
-        files = self.reader.list_files()
-        print(f"✓ Found {len(files)} files in {RAW_DATA_BUCKET}\n")
+        file_entries = self.reader.list_files_with_merge("**/*")
 
-        if not files:
+        # Count total files (for display)
+        total_files = sum(len(entry['files']) for entry in file_entries)
+        print(f"✓ Found {len(file_entries)} entries ({total_files} files) in {RAW_DATA_BUCKET}")
+
+        # Show merge info
+        merged_count = sum(1 for e in file_entries if e['type'] == 'merged')
+        if merged_count > 0:
+            print(f"  → {merged_count} directories with merge.txt will be processed as single documents")
+        print()
+
+        if not file_entries:
             print("⚠ No files to process. Exiting.")
             return
 
         # Phase 2: Process files (parallel or sequential)
         if PARALLEL_PROCESSING:
-            self._run_parallel(files)
+            self._run_parallel(file_entries)
         else:
-            self._run_sequential(files)
+            self._run_sequential(file_entries)
 
         # Phase 3: Print summary
         print("\n" + "="*80)
@@ -128,18 +137,22 @@ class PipelineRunner:
         with get_db() as db:
             self._print_summary(db)
 
-    def _run_sequential(self, files: List[str]):
+    def _run_sequential(self, file_entries: List[dict]):
         """Run pipeline sequentially (original behavior)."""
         with get_db() as db:
-            for file_path in files:
+            for entry in file_entries:
                 print("-" * 80)
-                print(f"Processing: {file_path}")
+                if entry['type'] == 'merged':
+                    print(f"Processing MERGED: {entry['path']} ({len(entry['files'])} files)")
+                else:
+                    print(f"Processing: {entry['path']}")
                 print("-" * 80)
 
                 try:
-                    self._process_file(db, file_path)
+                    self._process_entry(db, entry)
                 except Exception as e:
-                    print(f"✗ Error processing {file_path}: {str(e)}")
+                    display_path = entry['path']
+                    print(f"✗ Error processing {display_path}: {str(e)}")
                     import traceback
                     traceback.print_exc()
 
@@ -148,17 +161,18 @@ class PipelineRunner:
             # Commit all changes
             db.commit()
 
-    def _run_parallel(self, files: List[str]):
+    def _run_parallel(self, file_entries: List[dict]):
         """Run pipeline in parallel using ThreadPoolExecutor."""
-        print(f"Phase 2: Processing {len(files)} files in parallel (max {MAX_WORKERS} workers)...\n")
+        print(f"Phase 2: Processing {len(file_entries)} entries in parallel (max {MAX_WORKERS} workers)...\n")
 
-        progress = ProgressTracker(len(files))
+        progress = ProgressTracker(len(file_entries))
         print_lock = threading.Lock()  # For thread-safe printing
 
-        def process_file_wrapper(file_path: str) -> dict:
-            """Wrapper to process a file with its own database session."""
+        def process_entry_wrapper(entry: dict) -> dict:
+            """Wrapper to process an entry with its own database session."""
+            display_path = entry['path']
             result = {
-                'file_path': file_path,
+                'path': display_path,
                 'status': 'unknown',
                 'error': None
             }
@@ -171,10 +185,13 @@ class PipelineRunner:
 
                     # Thread-safe printing
                     with print_lock:
-                        print(f"[{progress.completed + 1}/{len(files)}] Processing: {file_path}")
+                        if entry['type'] == 'merged':
+                            print(f"[{progress.completed + 1}/{len(file_entries)}] Processing MERGED: {display_path} ({len(entry['files'])} files)")
+                        else:
+                            print(f"[{progress.completed + 1}/{len(file_entries)}] Processing: {display_path}")
 
-                    # Process file
-                    status = self._process_file(db, file_path, quiet=True)
+                    # Process entry
+                    status = self._process_entry(db, entry, quiet=True)
 
                     # Update progress
                     if status == 'skipped':
@@ -199,13 +216,13 @@ class PipelineRunner:
                     progress.increment_completed()
 
                     with print_lock:
-                        print(f"✗ Error processing {file_path}: {str(e)}")
+                        print(f"✗ Error processing {display_path}: {str(e)}")
 
             return result
 
-        # Process files in parallel
+        # Process entries in parallel
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            futures = {executor.submit(process_file_wrapper, file_path): file_path for file_path in files}
+            futures = {executor.submit(process_entry_wrapper, entry): entry for entry in file_entries}
 
             # Wait for all to complete
             for future in as_completed(futures):
@@ -219,12 +236,12 @@ class PipelineRunner:
         print(f"  Failed: {status['failed']}")
         print(f"  Total: {status['total']}")
 
-    def _process_file(self, db: Session, file_path: str, quiet: bool = False) -> str:
-        """Process a single file through the pipeline.
+    def _process_entry(self, db: Session, entry: dict, quiet: bool = False) -> str:
+        """Process a file entry (either individual file or merged directory).
 
         Args:
             db: Database session
-            file_path: Path to the file to process
+            entry: Entry dict with 'type', 'path', and 'files' keys
             quiet: If True, suppress verbose output (for parallel processing)
 
         Returns:
@@ -235,9 +252,43 @@ class PipelineRunner:
             if not quiet:
                 print(msg)
 
-        # Read file
-        content, file_type = self.reader.read_file(file_path)
-        _print(f"✓ Read file ({file_type}): {len(content)} chars")
+        # Get content based on entry type
+        if entry['type'] == 'merged':
+            # Merge multiple files
+            from pathlib import Path
+            directory = Path(entry['path'])
+            merge_patterns = entry['merge_patterns']
+
+            _print(f"→ Merging {len(entry['files'])} files from {directory.name}/...")
+            content, merged_files = self.reader.merge_directory_files(directory, merge_patterns)
+            file_type = 'merged'
+            file_path = str(directory)  # Use directory path as identifier
+            _print(f"✓ Merged {len(merged_files)} files: {len(content)} chars")
+        else:
+            # Process single file
+            file_path = entry['path']
+            content, file_type = self.reader.read_file(file_path)
+            _print(f"✓ Read file ({file_type}): {len(content)} chars")
+
+        return self._process_content(db, content, file_path, file_type, quiet)
+
+    def _process_content(self, db: Session, content: str, file_path: str, file_type: str, quiet: bool = False) -> str:
+        """Process file content through the pipeline.
+
+        Args:
+            db: Database session
+            content: File content
+            file_path: Path identifier (file or directory)
+            file_type: Type of content
+            quiet: If True, suppress verbose output
+
+        Returns:
+            Status string: 'processed', 'skipped', or 'failed'
+        """
+        def _print(msg):
+            """Conditional print based on quiet mode."""
+            if not quiet:
+                print(msg)
 
         # Check if already processed (deduplication)
         content_hash = compute_content_hash(content)
@@ -299,7 +350,7 @@ class PipelineRunner:
             return 'failed'
 
         _print(f"✓ Document relevant: {extraction.relevance_reasoning}")
-        _print(f"✓ Extracted {len(extraction.events)} event(s) from {len(set(e.company_name_canonical for e in extraction.events))} company(ies)")
+        _print(f"✓ Extracted {len(extraction.events)} event(s) from {len(set(e.entity_name_canonical for e in extraction.events))} entity(ies)")
 
         # Process each event (one per company)
         MIN_CONFIDENCE = 0.3  # Configurable threshold
@@ -307,7 +358,7 @@ class PipelineRunner:
 
         for idx, normalized_event in enumerate(extraction.events, 1):
             _print(f"\n  Event {idx}/{len(extraction.events)}:")
-            _print(f"  → Company: {normalized_event.company_name_raw} -> {normalized_event.company_name_canonical}")
+            _print(f"  → Entity: {normalized_event.entity_name_raw} -> {normalized_event.entity_name_canonical}")
             _print(f"  → Type: {normalized_event.event_type}")
             _print(f"  → Confidence: {normalized_event.extraction_confidence:.2f}")
 
@@ -332,7 +383,7 @@ class PipelineRunner:
         return 'processed'
 
     def _process_event(self, db: Session, normalized_event, file_path: str, source: str, quiet: bool = False):
-        """Process a single event for a company."""
+        """Process a single event for an entity."""
         def _print(msg):
             """Conditional print based on quiet mode."""
             if not quiet:
@@ -340,7 +391,7 @@ class PipelineRunner:
 
         # Canonicalize name
         canonical_name, normalized_name = canonicalize_company_name(
-            normalized_event.company_name_canonical
+            normalized_event.entity_name_canonical
         )
 
         # Enrich entity (optional, based on config and freshness)
@@ -364,7 +415,7 @@ class PipelineRunner:
                 _print("→ Enriching entity...")
                 enrichment = self.enricher.enrich_entity(
                     canonical_name=canonical_name,
-                    alternative_names=[normalized_event.company_name_raw]
+                    alternative_names=[normalized_event.entity_name_raw]
                 )
             else:
                 _print("⊙ Enrichment not needed (recent or has domain)")
@@ -377,6 +428,8 @@ class PipelineRunner:
             db=db,
             canonical_name=canonical_name,
             normalized_name=normalized_name,
+            entity_type=normalized_event.entity_type,
+            entity_metadata=normalized_event.entity_metadata,
             enrichment=enrichment
         )
         db.flush()
@@ -389,8 +442,9 @@ class PipelineRunner:
             event_type=normalized_event.event_type,
             event_time=self._parse_date(normalized_event.event_date),
             strict={
-                "company_name_raw": normalized_event.company_name_raw,
-                "company_name_canonical": normalized_event.company_name_canonical,
+                "entity_name_raw": normalized_event.entity_name_raw,
+                "entity_name_canonical": normalized_event.entity_name_canonical,
+                "entity_type": normalized_event.entity_type,
                 "summary": normalized_event.summary,
                 "key_facts": normalized_event.key_facts.model_dump() if normalized_event.key_facts else {},
                 "source_url": normalized_event.source_url,
