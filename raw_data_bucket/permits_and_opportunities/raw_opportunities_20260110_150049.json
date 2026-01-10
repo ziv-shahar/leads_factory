@@ -1,0 +1,337 @@
+{
+  "generated_at": "2026-01-10T15:00:49.483489",
+  "total_opportunities": 3,
+  "opportunities": [
+    {
+      "opportunity_id": "2afa962d5a414f209ae4c42fe6e8feb9",
+      "notice_id": "2afa962d5a414f209ae4c42fe6e8feb9",
+      "solicitation_number": "36C24826R0002",
+      "title": "X1DB--FY26 New Replacement/Relocation: Homestead CBOC    Amendment 0002",
+      "description": "https://api.sam.gov/prod/opportunities/v1/noticedesc?noticeid=2afa962d5a414f209ae4c42fe6e8feb9",
+      "agency": "",
+      "sub_agency": null,
+      "naics_code": "531120",
+      "status": "active",
+      "posted_date": "2026-01-09",
+      "response_deadline": "2026-02-23T15:00:00",
+      "aboa_sf_min": null,
+      "aboa_sf_max": null,
+      "delineated_area": null,
+      "city": null,
+      "state": null,
+      "zip_code": null,
+      "lease_term_years": null,
+      "tenant_improvement_allowance": null,
+      "facility_security_level": null,
+      "is_aaap": false,
+      "source_url": "https://sam.gov/workspace/contract/opp/2afa962d5a414f209ae4c42fe6e8feb9/view",
+      "raw_api_response": {
+        "noticeId": "2afa962d5a414f209ae4c42fe6e8feb9",
+        "title": "X1DB--FY26 New Replacement/Relocation: Homestead CBOC    Amendment 0002",
+        "solicitationNumber": "36C24826R0002",
+        "fullParentPathName": "VETERANS AFFAIRS, DEPARTMENT OF.VETERANS AFFAIRS, DEPARTMENT OF.248-NETWORK CONTRACT OFFICE 8 (36C248)",
+        "fullParentPathCode": "036.3600.36C248",
+        "postedDate": "2026-01-09",
+        "type": "Combined Synopsis/Solicitation",
+        "baseType": "Combined Synopsis/Solicitation",
+        "archiveType": "autocustom",
+        "archiveDate": "2026-05-24",
+        "typeOfSetAsideDescription": null,
+        "typeOfSetAside": "",
+        "responseDeadLine": "2026-02-23T15:00:00-05:00",
+        "naicsCode": "531120",
+        "naicsCodes": [
+          "531120"
+        ],
+        "classificationCode": "X1DB",
+        "active": "Yes",
+        "award": {
+          "awardee": {}
+        },
+        "pointOfContact": [
+          {
+            "fax": "",
+            "type": "primary",
+            "email": "javier.correaochoa@va.gov",
+            "phone": "786-299-2659",
+            "title": "Lease Contracting Officer",
+            "fullName": "Javier Correa"
+          }
+        ],
+        "description": "https://api.sam.gov/prod/opportunities/v1/noticedesc?noticeid=2afa962d5a414f209ae4c42fe6e8feb9",
+        "organizationType": "OFFICE",
+        "officeAddress": {
+          "zipcode": "33637",
+          "city": "TAMPA",
+          "countryCode": "USA",
+          "state": "FL"
+        },
+        "placeOfPerformance": {
+          "streetAddress": "TBD",
+          "streetAddress2": " TBD",
+          "city": {
+            "name": "Homestead"
+          },
+          "state": {
+            "name": "Florida"
+          },
+          "zip": "",
+          "country": {
+            "name": "United States of America"
+          }
+        },
+        "additionalInfoLink": null,
+        "uiLink": "https://sam.gov/workspace/contract/opp/2afa962d5a414f209ae4c42fe6e8feb9/view",
+        "links": [
+          {
+            "rel": "self",
+            "href": "https://api.sam.gov/prod/opportunities/v2/search?noticeid=2afa962d5a414f209ae4c42fe6e8feb9&limit=1"
+          }
+        ],
+        "resourceLinks": [
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/02becd1733dc4814b739db7b6e302a3d/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/0c2c1b9095934c0aade6c9041db37471/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/1071c435d273424d941555f6de543f3c/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/11317ec445e84a1c9f3a0692d94fc636/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/115c2773249747eb8cb1396c1c24b0fe/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/1635f7c24d0042958628cb5f9489fa7e/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/28d50c987e3b45379036c433b287f095/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/3259228b70b946669082ea7b16ee48b5/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/4ad8ecaa54094736bbfaaa51ffcfca34/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/4d5913c9c5d64be285471d690b8bdd8e/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/5b86d783e4f14215abfc22257581637e/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/618e7ea725da497c9b7cecef3fcc2538/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/64298d3127a34b768df7e5b54cd3df11/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/750ec6e2a9964f468a639214b661d3e0/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/beb50830597542f2ad2031c0b6ae3950/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/d0e1b39ca8664f6a97be5693f47b8b62/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/dbc63c1a04dc49769f201cc05ebb2ab9/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/df0aed8087214c3d93486c953f258d1f/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/e58e37c9bb094952a6dd561a863f6165/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/e8ae4bf8124549068ff46c5499fe2ea0/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/eb332a4bc55d48ac953d6bf7859b03f9/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/f99432a5242f4065aa08f8ff00f64643/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/ff9c969188284e5b8120f0db0c00b1a4/download"
+        ]
+      }
+    },
+    {
+      "opportunity_id": "5c987f98bb1346c3b17fb2c88eadbfeb",
+      "notice_id": "5c987f98bb1346c3b17fb2c88eadbfeb",
+      "solicitation_number": "36C24825R0110",
+      "title": "X1AA--FY26 New/Replacement Lease: Ceiba CBOC",
+      "description": "https://api.sam.gov/prod/opportunities/v1/noticedesc?noticeid=5c987f98bb1346c3b17fb2c88eadbfeb",
+      "agency": "",
+      "sub_agency": null,
+      "naics_code": "531120",
+      "status": "active",
+      "posted_date": "2025-12-30",
+      "response_deadline": "2026-02-16T15:00:00",
+      "aboa_sf_min": null,
+      "aboa_sf_max": null,
+      "delineated_area": null,
+      "city": null,
+      "state": null,
+      "zip_code": null,
+      "lease_term_years": null,
+      "tenant_improvement_allowance": null,
+      "facility_security_level": null,
+      "is_aaap": false,
+      "source_url": "https://sam.gov/workspace/contract/opp/5c987f98bb1346c3b17fb2c88eadbfeb/view",
+      "raw_api_response": {
+        "noticeId": "5c987f98bb1346c3b17fb2c88eadbfeb",
+        "title": "X1AA--FY26 New/Replacement Lease: Ceiba CBOC",
+        "solicitationNumber": "36C24825R0110",
+        "fullParentPathName": "VETERANS AFFAIRS, DEPARTMENT OF.VETERANS AFFAIRS, DEPARTMENT OF.248-NETWORK CONTRACT OFFICE 8 (36C248)",
+        "fullParentPathCode": "036.3600.36C248",
+        "postedDate": "2025-12-30",
+        "type": "Combined Synopsis/Solicitation",
+        "baseType": "Combined Synopsis/Solicitation",
+        "archiveType": "autocustom",
+        "archiveDate": "2026-05-17",
+        "typeOfSetAsideDescription": null,
+        "typeOfSetAside": "",
+        "responseDeadLine": "2026-02-16T15:00:00-05:00",
+        "naicsCode": "531120",
+        "naicsCodes": [
+          "531120"
+        ],
+        "classificationCode": "X1AA",
+        "active": "Yes",
+        "award": {
+          "awardee": {}
+        },
+        "pointOfContact": [
+          {
+            "fax": "",
+            "type": "primary",
+            "email": "javier.correaochoa@va.gov",
+            "phone": "786-299-2659",
+            "title": "Lease Contracting Officer",
+            "fullName": "Javier Correa"
+          }
+        ],
+        "description": "https://api.sam.gov/prod/opportunities/v1/noticedesc?noticeid=5c987f98bb1346c3b17fb2c88eadbfeb",
+        "organizationType": "OFFICE",
+        "officeAddress": {
+          "zipcode": "33637",
+          "city": "TAMPA",
+          "countryCode": "USA",
+          "state": "FL"
+        },
+        "placeOfPerformance": {
+          "streetAddress": "",
+          "streetAddress2": "",
+          "city": {
+            "name": "Ceiba"
+          },
+          "state": {
+            "name": "Puerto Rico"
+          },
+          "zip": "",
+          "country": {
+            "name": "United States of America"
+          }
+        },
+        "additionalInfoLink": null,
+        "uiLink": "https://sam.gov/workspace/contract/opp/5c987f98bb1346c3b17fb2c88eadbfeb/view",
+        "links": [
+          {
+            "rel": "self",
+            "href": "https://api.sam.gov/prod/opportunities/v2/search?noticeid=5c987f98bb1346c3b17fb2c88eadbfeb&limit=1"
+          }
+        ],
+        "resourceLinks": [
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/02cb9597a19b4d40a36c87a331d30724/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/10f2e80cd0cd4fa1945634bcc8c0a3a9/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/221fdc57ce64460d80435c487118daed/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/3107059f5f1c4ab69af71299e2eb5daa/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/32ec6297a31f4f8c8265f94e83da92ca/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/402d8361145b48e59c71a62279b89fbf/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/44b85cce40654b49a0dfc13b392867e9/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/5cd48d3d30b742ee8fc1ffb66adcbdf5/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/69e6b01510844b91ba20454784aa92f8/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/6aeedec5ca81422b81472614760d3463/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/76c9e6ad781e4061aaebc1150e0ecbb0/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/7c6e365b86344b21bf2e6bc2231f4896/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/7dfce484c6814afb85886648c3d23367/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/b747088d61e4423e892ce569a230a936/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/c11b032c599c4a6c8b8130d585ef2713/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/c59512df6a6f4577b5df16df33ed51e1/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/d510ce57bf0a4d9c8c551a8baed41540/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/d5478cc2983e452eb0b5a4ab349f1bbe/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/d658567ca4204bcca176f1ee65abdec3/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/dbcfb9ae43a142f88b528c3f0b7f75bd/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/ebca4e7223474c4492b3ca18de67165c/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/fbf3b6290fda4a34925afbe69f1627b6/download"
+        ]
+      }
+    },
+    {
+      "opportunity_id": "1a08c1526bb94dd8a33d51f0fbf2e4bc",
+      "notice_id": "1a08c1526bb94dd8a33d51f0fbf2e4bc",
+      "solicitation_number": "36C24826R0042",
+      "title": "X1DB--Primary care Clinic Vero Beach New Lease    12,948 ABOA SF of Medical Space in Vero Beach, Florida",
+      "description": "https://api.sam.gov/prod/opportunities/v1/noticedesc?noticeid=1a08c1526bb94dd8a33d51f0fbf2e4bc",
+      "agency": "",
+      "sub_agency": null,
+      "naics_code": "531120",
+      "status": "active",
+      "posted_date": "2025-12-19",
+      "response_deadline": "2026-01-26T15:00:00",
+      "aboa_sf_min": null,
+      "aboa_sf_max": null,
+      "delineated_area": null,
+      "city": null,
+      "state": null,
+      "zip_code": null,
+      "lease_term_years": null,
+      "tenant_improvement_allowance": null,
+      "facility_security_level": null,
+      "is_aaap": false,
+      "source_url": "https://sam.gov/workspace/contract/opp/1a08c1526bb94dd8a33d51f0fbf2e4bc/view",
+      "raw_api_response": {
+        "noticeId": "1a08c1526bb94dd8a33d51f0fbf2e4bc",
+        "title": "X1DB--Primary care Clinic Vero Beach New Lease    12,948 ABOA SF of Medical Space in Vero Beach, Florida",
+        "solicitationNumber": "36C24826R0042",
+        "fullParentPathName": "VETERANS AFFAIRS, DEPARTMENT OF.VETERANS AFFAIRS, DEPARTMENT OF.248-NETWORK CONTRACT OFFICE 8 (36C248)",
+        "fullParentPathCode": "036.3600.36C248",
+        "postedDate": "2025-12-19",
+        "type": "Combined Synopsis/Solicitation",
+        "baseType": "Sources Sought",
+        "archiveType": "autocustom",
+        "archiveDate": "2026-04-26",
+        "typeOfSetAsideDescription": null,
+        "typeOfSetAside": "",
+        "responseDeadLine": "2026-01-26T15:00:00-05:00",
+        "naicsCode": "531120",
+        "naicsCodes": [
+          "531120"
+        ],
+        "classificationCode": "X1DB",
+        "active": "Yes",
+        "award": {
+          "awardee": {}
+        },
+        "pointOfContact": [
+          {
+            "fax": "",
+            "type": "primary",
+            "email": "javier.correaochoa@va.gov",
+            "phone": "786-299-2659",
+            "title": "Lease Contracting Officer",
+            "fullName": "Javier Correa Ochoa"
+          }
+        ],
+        "description": "https://api.sam.gov/prod/opportunities/v1/noticedesc?noticeid=1a08c1526bb94dd8a33d51f0fbf2e4bc",
+        "organizationType": "OFFICE",
+        "officeAddress": {
+          "zipcode": "33637",
+          "city": "TAMPA",
+          "countryCode": "USA",
+          "state": "FL"
+        },
+        "placeOfPerformance": {
+          "streetAddress": "TBD",
+          "streetAddress2": "",
+          "city": {
+            "name": "Vero Beach"
+          },
+          "state": {
+            "name": "Florida"
+          },
+          "zip": "",
+          "country": {
+            "name": "United States of America"
+          }
+        },
+        "additionalInfoLink": null,
+        "uiLink": "https://sam.gov/workspace/contract/opp/1a08c1526bb94dd8a33d51f0fbf2e4bc/view",
+        "links": [
+          {
+            "rel": "self",
+            "href": "https://api.sam.gov/prod/opportunities/v2/search?noticeid=1a08c1526bb94dd8a33d51f0fbf2e4bc&limit=1"
+          }
+        ],
+        "resourceLinks": [
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/01b618a48884429ab58d0f9d345c4cab/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/0f10d996d4f34509a8b3ed418a8a2d44/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/163bbf5bc3714ad9b5ea351d571f9ee6/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/1c6ffa747b02456b892d82bc24573562/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/241cf0f279034154af30c9b1879d5b7c/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/41a08b0041a742b8ba9c449f6c0e3423/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/4f33e37c6bb141e88cbc58d9c189ad20/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/5cc603bb54b0480e9d12a585cc76afe7/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/6023512278aa40d3b35177f5199ecad3/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/61be6c4dbed14fa09a509df8db911f12/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/8158dd35517441b1bbf977a93e856e3a/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/8c431fc1bcc64b52b59c677ba09b6be8/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/9c5c1241e1da47d1be949d87f921b748/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/ae009d8ef8e74340b83492d6ee3bc1a9/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/c62c520c6f84468c9be84b13495b275c/download",
+          "https://sam.gov/api/prod/opps/v3/opportunities/resources/files/d7f52b86c6d74ae19cf29503f2155ac5/download"
+        ]
+      }
+    }
+  ]
+}
