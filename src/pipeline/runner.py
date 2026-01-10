@@ -217,6 +217,8 @@ class PipelineRunner:
 
                     with print_lock:
                         print(f"✗ Error processing {display_path}: {str(e)}")
+                        import traceback
+                        traceback.print_exc()
 
             return result
 
