@@ -747,6 +747,7 @@ class Normalizer:
                 data = json.loads(response)
             except json.JSONDecodeError as e:
                 print(f"⚠ JSON decode error, attempting repair: {str(e)}")
+                print(f"⚠ Raw response (first 500 chars): {response[:500]}")
                 data = self._repair_json(response)
 
             # Validate with Pydantic
@@ -756,10 +757,22 @@ class Normalizer:
             return extraction
 
         except ValidationError as e:
-            print(f"✗ Validation error for {file_path}: {str(e)}")
+            print(f"✗ Validation error for {file_path}:")
+            print(f"  Error: {str(e)}")
+            print(f"  Raw response (first 1000 chars): {response[:1000] if 'response' in locals() else 'N/A'}")
+            if 'data' in locals():
+                print(f"  Parsed data keys: {list(data.keys()) if isinstance(data, dict) else type(data)}")
+                if isinstance(data, dict) and 'events' in data:
+                    print(f"  Number of events: {len(data['events'])}")
+                    if data['events']:
+                        print(f"  First event keys: {list(data['events'][0].keys())}")
+                        if 'entity_metadata' in data['events'][0]:
+                            print(f"  First event entity_metadata: {data['events'][0]['entity_metadata']}")
             return None
         except Exception as e:
             print(f"✗ Extraction error for {file_path}: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return None
 
     def _repair_json(self, malformed_json: str) -> Dict[str, Any]:
