@@ -62,14 +62,14 @@ def migrate():
         """))
         print("  ✓ Set default entity_type")
 
-        print("Step 3: Adding metadata JSONB column...")
+        print("Step 3: Adding entity_metadata JSONB column...")
         conn.execute(text("""
             ALTER TABLE entities
-            ADD COLUMN metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+            ADD COLUMN entity_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
         """))
-        print("  ✓ Added metadata column")
+        print("  ✓ Added entity_metadata column")
 
-        print("Step 4: Migrating existing data to metadata...")
+        print("Step 4: Migrating existing data to entity_metadata...")
         # Check if old columns exist before migrating
         result = conn.execute(text("""
             SELECT EXISTS (
@@ -81,7 +81,7 @@ def migrate():
         if result.scalar():
             conn.execute(text("""
                 UPDATE entities
-                SET metadata = jsonb_build_object(
+                SET entity_metadata = jsonb_build_object(
                     'website_url', website_url,
                     'linkedin_url', linkedin_url,
                     'hq_city', hq_city,
@@ -92,7 +92,7 @@ def migrate():
                    OR hq_city IS NOT NULL
                    OR hq_state IS NOT NULL;
             """))
-            print("  ✓ Migrated existing data to metadata")
+            print("  ✓ Migrated existing data to entity_metadata")
         else:
             print("  ✓ No old columns to migrate (fresh database)")
 

@@ -109,7 +109,7 @@ class EntityResolver:
             canonical_name=canonical_name,
             normalized_name=normalized_name,
             entity_type=entity_type,
-            metadata=entity_metadata or {}
+            entity_metadata=entity_metadata or {}
         )
 
         if enrichment:
@@ -139,11 +139,11 @@ class EntityResolver:
 
         # Merge entity_metadata from extraction
         if entity_metadata:
-            if entity.metadata is None:
-                entity.metadata = {}
+            if entity.entity_metadata is None:
+                entity.entity_metadata = {}
             for key, value in entity_metadata.items():
-                if value is not None and key not in entity.metadata:
-                    entity.metadata[key] = value
+                if value is not None and key not in entity.entity_metadata:
+                    entity.entity_metadata[key] = value
                     updated = True
 
         # Update domain from enrichment (only if not already set)
@@ -153,14 +153,14 @@ class EntityResolver:
 
         # Merge enrichment metadata
         if enrichment and enrichment.metadata:
-            if entity.metadata is None:
-                entity.metadata = {}
+            if entity.entity_metadata is None:
+                entity.entity_metadata = {}
             for key, value in enrichment.metadata.items():
-                if value is not None and key not in entity.metadata:
-                    entity.metadata[key] = value
+                if value is not None and key not in entity.entity_metadata:
+                    entity.entity_metadata[key] = value
                     updated = True
 
         # Update enrichment timestamp
         if updated and enrichment:
             entity.last_enriched_at = datetime.utcnow()
-            print(f"    Enriched entity with: domain={entity.domain}, metadata_keys={list(entity.metadata.keys())}")
+            print(f"    Enriched entity with: domain={entity.domain}, metadata_keys={list(entity.entity_metadata.keys())}")

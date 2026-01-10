@@ -44,7 +44,7 @@ class Entity(Base):
     entity_type = Column(String(50), nullable=True)  # "company", "government_agency", "municipality", "contractor", "nonprofit"
 
     # Flexible storage for ANY entity-specific data
-    metadata = Column(JSONB, nullable=False, default=dict)
+    entity_metadata = Column(JSONB, nullable=False, default=dict)
     """
     Flexible JSONB storage for entity-specific information. Examples:
 
