@@ -23,21 +23,9 @@ from src.resolve.resolver import EntityResolver
 from src.resolve.canonicalize import canonicalize_company_name
 from src.scoring.scorer import LeadScorer
 
-# Configure logging
+# Log directory (created once)
 LOG_DIR = Path("logs")
 LOG_DIR.mkdir(exist_ok=True)
-LOG_FILE = LOG_DIR / f"pipeline_errors_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(LOG_FILE),
-        logging.StreamHandler()  # Also log to console
-    ]
-)
-
-logger = logging.getLogger(__name__)
 
 
 class RateLimiter:
@@ -116,13 +104,39 @@ class PipelineRunner:
 
     def run(self):
         """Run the complete pipeline."""
+        # Create new log file for this run
+        log_file = LOG_DIR / f"pipeline_errors_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+
+        # Configure logger for this run
+        logger = logging.getLogger('pipeline_runner')
+        logger.setLevel(logging.INFO)
+
+        # Remove existing handlers to avoid duplicates
+        logger.handlers = []
+
+        # Add file handler for this run
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        logger.addHandler(file_handler)
+
+        # Add console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.WARNING)  # Only show warnings/errors in console
+        console_handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+        logger.addHandler(console_handler)
+
+        # Store logger for use in other methods
+        self.logger = logger
+        self.log_file = log_file
+
         print("\n" + "="*80)
         print("LEAD INTELLIGENCE PIPELINE - STARTING")
         if PARALLEL_PROCESSING:
             print(f"MODE: PARALLEL ({MAX_WORKERS} workers)")
         else:
             print("MODE: SEQUENTIAL")
-        print(f"ERROR LOG: {LOG_FILE}")
+        print(f"ERROR LOG: {log_file}")
         print("="*80 + "\n")
 
         logger.info("Pipeline started")
@@ -398,7 +412,7 @@ class PipelineRunner:
                 processed_count += 1
             except Exception as e:
                 error_msg = f"Failed to process event for {normalized_event.entity_name_canonical}: {str(e)}"
-                logger.error(error_msg, exc_info=True)
+                self.logger.error(error_msg, exc_info=True)
                 _print(f"  ✗ Error: {error_msg}")
 
                 failed_events.append({
@@ -413,7 +427,7 @@ class PipelineRunner:
 
         # Report results
         if failed_events:
-            _print(f"\n⚠ {len(failed_events)} event(s) failed to process (see {LOG_FILE} for details)")
+            _print(f"\n⚠ {len(failed_events)} event(s) failed to process (see {self.log_file} for details)")
             for failed in failed_events:
                 _print(f"  ✗ {failed['entity_name']} ({failed['event_type']}): {failed['error'][:80]}")
 
