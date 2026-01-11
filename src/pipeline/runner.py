@@ -142,9 +142,10 @@ class PipelineRunner:
         logger.info("Pipeline started")
         logger.info(f"Mode: {'PARALLEL' if PARALLEL_PROCESSING else 'SEQUENTIAL'}")
 
-        # Phase 1: Discover files (with merge support)
+        # Phase 1: Discover files (non-recursive, explicit discovery)
+        # Discovers: root files, directories with merge.txt, directories with files
         print("Phase 1: Discovering raw files...")
-        file_entries = self.reader.list_files_with_merge("**/*")
+        file_entries = self.reader.list_files_with_merge()
 
         # Count total files (for display)
         total_files = sum(len(entry['files']) for entry in file_entries)

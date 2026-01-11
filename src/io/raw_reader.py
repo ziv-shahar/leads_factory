@@ -345,14 +345,35 @@ class RawFileReader:
 
     def list_files_with_merge(self, pattern: str = "*") -> List[Dict[str, any]]:
         """
-        List files with merge support.
+        List files with merge support - non-recursive, explicit discovery.
+
+        Discovery rules (processes only immediate children of RAW_DATA_BUCKET):
+        1. Files at root level: Process individually
+        2. Directory with merge.txt: Process as merged entry (combines files per merge.txt patterns)
+        3. Directory with files (no merge.txt): Process each file individually
+        4. Directory with only subdirectories (no direct files): Ignore
+        5. Does NOT recurse into nested directories automatically
+
+        Examples:
+          raw_data_bucket/
+            article.html              → Processed as file
+            news/
+              story1.html             → Processed as file
+              story2.html             → Processed as file
+            contracts/
+              merge.txt               → Directory processed as merged entry
+              doc1.pdf
+              doc2.docx
+            reports/
+              2024/
+                data.xlsx             → Ignored (nested)
 
         Returns a list of file entries. Each entry is either:
         - A single file: {"type": "file", "path": "...", "files": ["..."]}
         - A merged directory: {"type": "merged", "path": "dir_path", "files": ["file1", "file2", ...]}
 
         Args:
-            pattern: Glob pattern for file discovery
+            pattern: Glob pattern (currently unused, kept for API compatibility)
 
         Returns:
             List of file entry dicts
@@ -361,47 +382,46 @@ class RawFileReader:
             return []
 
         entries = []
-        processed_dirs = set()
 
-        # Find all matching files
-        for path in self.bucket_path.glob(pattern):
-            if not path.is_file():
-                continue
+        # Iterate through immediate children of bucket_path
+        for item in sorted(self.bucket_path.iterdir()):
+            if item.is_file():
+                # Individual file at root level - add it
+                entries.append({
+                    "type": "file",
+                    "path": str(item),
+                    "files": [str(item)]
+                })
 
-            parent_dir = path.parent
-
-            # Check if this directory should be merged
-            if parent_dir not in processed_dirs:
-                merge_patterns = self.check_merge_config(parent_dir)
+            elif item.is_dir():
+                # Check if directory has merge.txt
+                merge_patterns = self.check_merge_config(item)
 
                 if merge_patterns:
-                    # This directory has merge.txt
-                    processed_dirs.add(parent_dir)
-
-                    # Get all files that would be merged
-                    _, merged_files = self.merge_directory_files(parent_dir, merge_patterns)
+                    # Directory with merge.txt - create merged entry
+                    _, merged_files = self.merge_directory_files(item, merge_patterns)
 
                     if merged_files:
                         entries.append({
                             "type": "merged",
-                            "path": str(parent_dir),
+                            "path": str(item),
                             "files": merged_files,
                             "merge_patterns": merge_patterns
                         })
+                else:
+                    # Directory without merge.txt - check if it has files directly in it
+                    has_files = any(f.is_file() for f in item.iterdir())
 
-                    # Mark all files in this directory as processed
-                    for f in parent_dir.iterdir():
-                        if f.is_file():
-                            processed_dirs.add(f)
-
-                elif path not in processed_dirs:
-                    # Regular file, not in a merged directory
-                    entries.append({
-                        "type": "file",
-                        "path": str(path),
-                        "files": [str(path)]
-                    })
-                    processed_dirs.add(path)
+                    if has_files:
+                        # Process each file in this directory individually
+                        for file_path in sorted(item.iterdir()):
+                            if file_path.is_file():
+                                entries.append({
+                                    "type": "file",
+                                    "path": str(file_path),
+                                    "files": [str(file_path)]
+                                })
+                    # Else: directory with only subdirectories - ignore it
 
         return entries
 
