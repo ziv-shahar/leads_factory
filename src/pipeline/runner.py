@@ -2,8 +2,10 @@
 import hashlib
 import threading
 import time
+import logging
 from datetime import datetime
-from typing import List
+from typing import List, Dict, Any
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from sqlalchemy.orm import Session
 
@@ -20,6 +22,22 @@ from src.enrich.enricher import Enricher
 from src.resolve.resolver import EntityResolver
 from src.resolve.canonicalize import canonicalize_company_name
 from src.scoring.scorer import LeadScorer
+
+# Configure logging
+LOG_DIR = Path("logs")
+LOG_DIR.mkdir(exist_ok=True)
+LOG_FILE = LOG_DIR / f"pipeline_errors_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(LOG_FILE),
+        logging.StreamHandler()  # Also log to console
+    ]
+)
+
+logger = logging.getLogger(__name__)
 
 
 class RateLimiter:
@@ -104,7 +122,11 @@ class PipelineRunner:
             print(f"MODE: PARALLEL ({MAX_WORKERS} workers)")
         else:
             print("MODE: SEQUENTIAL")
+        print(f"ERROR LOG: {LOG_FILE}")
         print("="*80 + "\n")
+
+        logger.info("Pipeline started")
+        logger.info(f"Mode: {'PARALLEL' if PARALLEL_PROCESSING else 'SEQUENTIAL'}")
 
         # Phase 1: Discover files (with merge support)
         print("Phase 1: Discovering raw files...")
@@ -357,6 +379,7 @@ class PipelineRunner:
         # Process each event (one per company)
         MIN_CONFIDENCE = 0.3  # Configurable threshold
         processed_count = 0
+        failed_events = []  # Track failed events
 
         for idx, normalized_event in enumerate(extraction.events, 1):
             _print(f"\n  Event {idx}/{len(extraction.events)}:")
@@ -369,19 +392,49 @@ class PipelineRunner:
                 _print(f"  ⊘ Skipped (confidence too low: {normalized_event.extraction_confidence:.2f} < {MIN_CONFIDENCE})")
                 continue
 
-            # Process this event
-            self._process_event(db, normalized_event, file_path, "local_bucket", quiet=quiet)
-            processed_count += 1
+            # Process this event with error handling
+            try:
+                self._process_event(db, normalized_event, file_path, "local_bucket", quiet=quiet)
+                processed_count += 1
+            except Exception as e:
+                error_msg = f"Failed to process event for {normalized_event.entity_name_canonical}: {str(e)}"
+                logger.error(error_msg, exc_info=True)
+                _print(f"  ✗ Error: {error_msg}")
+
+                failed_events.append({
+                    'entity_name': normalized_event.entity_name_canonical,
+                    'event_type': normalized_event.event_type,
+                    'error': str(e),
+                    'file_path': file_path
+                })
+
+                # Continue processing other events instead of failing
+                continue
+
+        # Report results
+        if failed_events:
+            _print(f"\n⚠ {len(failed_events)} event(s) failed to process (see {LOG_FILE} for details)")
+            for failed in failed_events:
+                _print(f"  ✗ {failed['entity_name']} ({failed['event_type']}): {failed['error'][:80]}")
 
         if processed_count == 0:
-            raw_event.status = "FAILED"
-            raw_event.error = f"All {len(extraction.events)} events below confidence threshold"
-            _print(f"\n✗ All events filtered out (low confidence)")
-            return 'failed'
+            if len(extraction.events) == len(failed_events):
+                raw_event.status = "FAILED"
+                raw_event.error = f"All {len(extraction.events)} events failed to process"
+                _print(f"\n✗ All events failed")
+                return 'failed'
+            else:
+                raw_event.status = "FAILED"
+                raw_event.error = f"All {len(extraction.events)} events below confidence threshold"
+                _print(f"\n✗ All events filtered out (low confidence)")
+                return 'failed'
 
-        # Mark as processed
+        # Mark as processed (even with some failures)
         raw_event.status = "PROCESSED"
-        _print(f"\n✓ File processing complete: {processed_count}/{len(extraction.events)} events processed")
+        success_msg = f"File processing complete: {processed_count}/{len(extraction.events)} events processed"
+        if failed_events:
+            success_msg += f", {len(failed_events)} failed"
+        _print(f"\n✓ {success_msg}")
         return 'processed'
 
     def _process_event(self, db: Session, normalized_event, file_path: str, source: str, quiet: bool = False):
