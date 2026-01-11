@@ -116,9 +116,9 @@ ENTITY IDENTIFICATION RULES:
 
 Examples of entity extraction:
 - "Acme Cloud Inc raised $50M" → entity_name_raw="Acme Cloud Inc", entity_name_canonical="ACME CLOUD", entity_type="company"
-- "GSA seeks office space in Austin" → entity_name_raw="GSA", entity_name_canonical="GENERAL SERVICES ADMINISTRATION", entity_type="government_agency", entity_metadata={"agency_code": "GSA", "jurisdiction": "federal"}
+- "GSA seeks office space in Austin" → entity_name_raw="GSA", entity_name_canonical="GENERAL SERVICES ADMINISTRATION", entity_type="government_agency", entity_metadata={{"agency_code": "GSA", "jurisdiction": "federal"}}
 - "Miami-Dade County issued permit" → entity_name_raw="Miami-Dade County", entity_name_canonical="MIAMI-DADE COUNTY", entity_type="municipality"
-- "Acme Construction (DUNS: 123456789) awarded contract" → entity_name_raw="Acme Construction", entity_type="contractor", entity_metadata={"duns_number": "123456789"}
+- "Acme Construction (DUNS: 123456789) awarded contract" → entity_name_raw="Acme Construction", entity_type="contractor", entity_metadata={{"duns_number": "123456789"}}
 
 LOCATION EXTRACTION (CRITICAL):
 Extract the location where THIS SPECIFIC EVENT occurred, NOT the company's headquarters location.
