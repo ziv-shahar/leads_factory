@@ -118,8 +118,8 @@ class Enricher:
             enrichment = EnrichmentResult(**data)
 
             print(f"  ✓ Enrichment complete (confidence: {enrichment.enrichment_confidence:.2f})")
-            if enrichment.official_domain:
-                print(f"    Domain: {enrichment.official_domain}")
+            if enrichment.domain:
+                print(f"    Domain: {enrichment.domain}")
 
             return enrichment
 

@@ -513,14 +513,30 @@ class PipelineRunner:
             print(f"\n{entity.canonical_name}")
             print(f"  ID: {entity.id}")
             print(f"  Normalized: {entity.normalized_name}")
+            print(f"  Type: {entity.entity_type or 'N/A'}")
             print(f"  Domain: {entity.domain or 'N/A'}")
-            print(f"  Website: {entity.website_url or 'N/A'}")
-            print(f"  LinkedIn: {entity.linkedin_url or 'N/A'}")
-            if entity.hq_city or entity.hq_state:
-                hq = f"{entity.hq_city or 'Unknown'}, {entity.hq_state or 'Unknown'}"
+
+            # Get metadata fields
+            metadata = entity.entity_metadata or {}
+            website = metadata.get('website_url') or metadata.get('gov_domain')
+            linkedin = metadata.get('linkedin_url')
+            hq_city = metadata.get('hq_city')
+            hq_state = metadata.get('hq_state')
+
+            if website:
+                print(f"  Website: {website}")
+            if linkedin:
+                print(f"  LinkedIn: {linkedin}")
+            if hq_city or hq_state:
+                hq = f"{hq_city or 'Unknown'}, {hq_state or 'Unknown'}"
                 print(f"  HQ: {hq}")
-            else:
-                print(f"  HQ: N/A")
+
+            # Show some entity-specific metadata
+            if entity.entity_type == 'government_agency' and metadata.get('agency_code'):
+                print(f"  Agency Code: {metadata.get('agency_code')}")
+                print(f"  Jurisdiction: {metadata.get('jurisdiction', 'N/A')}")
+            elif entity.entity_type == 'contractor' and metadata.get('duns_number'):
+                print(f"  DUNS: {metadata.get('duns_number')}")
 
             # Events
             events = db.query(Event).filter(Event.entity_id == entity.id).all()
