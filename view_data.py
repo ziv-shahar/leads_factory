@@ -21,21 +21,42 @@ def view_all_data():
             print(f"  Status: {raw.status}")
 
         print("\n" + "=" * 80)
-        print("ENTITIES (Companies)")
+        print("ENTITIES (All Types)")
         print("=" * 80)
         entities = db.query(Entity).all()
         for entity in entities:
             print(f"\nID: {entity.id}")
             print(f"  Canonical Name: {entity.canonical_name}")
             print(f"  Normalized: {entity.normalized_name}")
-            print(f"  Domain: {entity.domain}")
-            print(f"  Website: {entity.website_url}")
-            print(f"  LinkedIn: {entity.linkedin_url}")
-            if entity.hq_city or entity.hq_state:
-                hq = f"{entity.hq_city or 'Unknown'}, {entity.hq_state or 'Unknown'}"
+            print(f"  Type: {entity.entity_type or 'N/A'}")
+            print(f"  Domain: {entity.domain or 'N/A'}")
+
+            # Get metadata fields
+            metadata = entity.entity_metadata or {}
+            website = metadata.get('website_url') or metadata.get('gov_domain')
+            linkedin = metadata.get('linkedin_url')
+            hq_city = metadata.get('hq_city')
+            hq_state = metadata.get('hq_state')
+
+            if website:
+                print(f"  Website: {website}")
+            if linkedin:
+                print(f"  LinkedIn: {linkedin}")
+            if hq_city or hq_state:
+                hq = f"{hq_city or 'Unknown'}, {hq_state or 'Unknown'}"
                 print(f"  HQ: {hq}")
-            else:
-                print(f"  HQ: None")
+
+            # Show entity-specific metadata
+            if entity.entity_type == 'government_agency':
+                if metadata.get('agency_code'):
+                    print(f"  Agency Code: {metadata.get('agency_code')}")
+                if metadata.get('jurisdiction'):
+                    print(f"  Jurisdiction: {metadata.get('jurisdiction')}")
+            elif entity.entity_type == 'contractor':
+                if metadata.get('duns_number'):
+                    print(f"  DUNS: {metadata.get('duns_number')}")
+                if metadata.get('cage_code'):
+                    print(f"  CAGE Code: {metadata.get('cage_code')}")
 
         print("\n" + "=" * 80)
         print("EVENTS (Extracted Events)")
