@@ -1,226 +1,280 @@
-# Quick Start Guide
+# 🚀 Quick Start Guide
 
-## Current Status
-✅ System is fully functional
-✅ Database initialized
-✅ Tested with 3 mock documents
-✅ All code committed to git
+Your Leads Factory pipeline is now configured for Supabase! Follow these steps to get started.
 
-## Step 1: Add Your Own Documents
+## ✅ What's Already Done
 
-### Supported Formats
-- HTML files (web scrapes, articles)
-- JSON files (API responses, structured data)
-- TXT files (reports, emails, documents)
-
-### How to Add Files
-
-```bash
-# Simply copy your files to the bucket
-cp your_document.html raw_data_bucket/
-cp your_data.json raw_data_bucket/
-cp your_report.txt raw_data_bucket/
-```
-
-### What the System Extracts
-The LLM looks for:
-- Company/organization names
-- Event types (funding, partnerships, hiring, etc.)
-- Key facts (amounts, dates, people, locations)
-- Dynamic signals (anything valuable that doesn't fit strict schema)
+1. ✅ **Building demolition feature implemented** - Processes building data and finds companies at addresses
+2. ✅ **Directory structure organized** - `raw_data_bucket/` with companies/, buildings/, government/
+3. ✅ **Supabase configured** - `.env` file has correct connection string
+4. ✅ **Migration SQL ready** - `supabase_migration.sql` contains all table definitions
 
 ---
 
-## Step 2: Configure LLM Provider (Optional)
+## 🏃 Quick Start (3 Steps)
 
-### Current Setup: Mock Mode
-The system runs with fake LLM responses - great for testing!
+### Step 1: Verify Setup
 
-### To Use Real LLM (Better Extraction)
-
-Edit `.env`:
+Run the verification script on your local machine:
 
 ```bash
-# Option A: Use OpenAI
-LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-your-key-here
-
-# Option B: Use Anthropic (Claude)
-LLM_PROVIDER=anthropic
-ANTHROPIC_API_KEY=sk-ant-your-key-here
+python verify_setup.py
 ```
 
-### Cost Estimate
-- ~$0.01-0.05 per document (depending on size)
-- Recommended: Start with OpenAI GPT-4o or Claude Sonnet
+This will check:
+- ✅ Database connection works
+- ✅ All tables exist
+- ✅ Configuration is correct
+- ✅ Dependencies are installed
+
+**Expected output:** All checks should pass ✅
 
 ---
 
-## Step 3: Configure Search Provider (Optional)
+### Step 2: Ensure Tables Exist
 
-### Current Setup: Mock Search
-Returns fake search results for enrichment.
+If the verification shows missing tables, run the migration in Supabase:
 
-### To Use Real Search (Better Entity Resolution)
+1. Go to https://app.supabase.com
+2. Open **SQL Editor**
+3. Create new query
+4. Copy contents of `supabase_migration.sql`
+5. Click **Run**
 
-Edit `.env`:
-
-```bash
-# Option A: Tavily (Recommended - best for company search)
-SEARCH_PROVIDER=tavily
-TAVILY_API_KEY=tvly-your-key-here
-
-# Option B: Exa
-SEARCH_PROVIDER=exa
-EXA_API_KEY=your-key-here
+**Expected output:**
 ```
-
-### Cost Estimate
-- Tavily: ~$0.005 per search (enrichment runs once per entity)
-- Only enriches when needed (no domain or >30 days old)
-
----
-
-## Step 4: Run the Pipeline
-
-```bash
-# Process all files in raw_data_bucket/
-python main.py run
-```
-
-### What Happens:
-1. ✓ Scans raw_data_bucket/ for files
-2. ✓ Deduplicates (skips already-processed files by hash)
-3. ✓ Extracts structured events with LLM
-4. ✓ Enriches entities with web search (if needed)
-5. ✓ Resolves to deduplicated entities
-6. ✓ Scores leads with time decay
-7. ✓ Prints detailed summary
-
-### Output Example:
-```
-ACME CLOUD
-  Domain: acmecloud.io
-  Events: 3
-  Lead Score: 137
-  Status: ACTIVE
-  Top Signals:
-    • funding_round: +20
-    • hiring_surge: +15
-    • partnership: +10
+✅ Migration complete! All 5 tables created successfully.
 ```
 
 ---
 
-## Step 5: Query Your Data
+### Step 3: Run the Pipeline
 
-### Option A: Direct SQL
+Once verification passes, run the pipeline:
 
 ```bash
-# Connect to database
-psql -U leadgen_user -d leadgen_db -h localhost
+python main.py
+```
 
-# View all leads
+This will:
+1. 📂 Read files from `raw_data_bucket/`
+2. 🏢 Process company news (companies/)
+3. 🏗️ Process building demolitions (buildings/) → Find companies at addresses
+4. 🏛️ Process government contracts (government/)
+5. 🔍 Enrich entities with web search
+6. 📊 Score leads
+7. 💾 Store everything in Supabase!
+
+---
+
+## 📊 View Your Data
+
+### Option 1: Supabase Dashboard
+
+1. Go to https://app.supabase.com
+2. Navigate to **Table Editor**
+3. Browse tables:
+   - `leads_current` - Scored leads
+   - `entities` - Companies/organizations
+   - `events` - All events (funding, hiring, demolitions, etc.)
+   - `active_leads_view` - High-priority leads
+
+### Option 2: SQL Queries
+
+Go to **SQL Editor** and run:
+
+**High-priority leads:**
+```sql
 SELECT
-  e.canonical_name,
-  e.domain,
-  l.score,
-  l.status
-FROM entities e
-JOIN leads_current l ON l.entity_id = e.id
-ORDER BY l.score DESC;
-
-# View events for a specific entity
-SELECT event_type, strict->>'summary' as summary
-FROM events
-WHERE entity_id = 1;
+    canonical_name,
+    domain,
+    score,
+    status,
+    reasons
+FROM active_leads_view
+WHERE score >= 50
+ORDER BY score DESC
+LIMIT 20;
 ```
 
-### Option B: Python Script
-
-Create `query_leads.py`:
-
-```python
-from src.db.session import get_db
-from src.db.models import Entity, LeadCurrent
-
-with get_db() as db:
-    # Get top leads
-    leads = db.query(LeadCurrent).join(Entity)\
-        .filter(LeadCurrent.score >= 50)\
-        .order_by(LeadCurrent.score.desc())\
-        .all()
-
-    for lead in leads:
-        print(f"{lead.entity.canonical_name}: {lead.score}")
+**Companies from building demolitions:**
+```sql
+SELECT
+    e.canonical_name,
+    e.domain,
+    ev.strict->>'summary' as event_summary,
+    ev.strict->'key_facts'->>'current_address' as building_address,
+    lc.score
+FROM events ev
+JOIN entities e ON ev.entity_id = e.id
+LEFT JOIN leads_current lc ON e.id = lc.entity_id
+WHERE ev.event_type = 'contraction'
+  AND ev.dynamic_signals::text LIKE '%office_relocation_urgent%'
+ORDER BY lc.score DESC;
 ```
 
----
-
-## Customization
-
-### Change Event Scoring Rules
-
-Edit `src/config.py`:
-
-```python
-# In LeadScorer class (src/scoring/scorer.py)
-self.event_scores = {
-    "funding_round": 25,      # Increase funding importance
-    "partnership": 15,         # Increase partnership value
-    "layoffs": -20,            # More penalty for layoffs
-    # ... customize for your domain
-}
-```
-
-### Change Time Decay
-
-Edit `.env`:
-
-```bash
-SCORING_TIME_DECAY_DAYS=60  # Faster decay (default: 90)
-```
-
-### Add Custom Event Types
-
-Edit `src/config.py`:
-
-```python
-EVENT_TYPES = [
-    "funding_round",
-    "partnership",
-    "your_custom_event",  # Add here
-    # ...
-]
+**Recent events timeline:**
+```sql
+SELECT
+    e.canonical_name,
+    ev.event_type,
+    ev.strict->>'summary' as summary,
+    ev.event_time,
+    ev.extraction_confidence
+FROM events ev
+JOIN entities e ON ev.entity_id = e.id
+ORDER BY ev.event_time DESC
+LIMIT 50;
 ```
 
 ---
 
-## Troubleshooting
+## 📁 Directory Structure
 
-### Database Connection Issues
-```bash
-# Check if PostgreSQL is running
-sudo service postgresql status
-
-# Restart if needed
-sudo service postgresql restart
+```
+raw_data_bucket/
+├── companies/          # Company news, funding, hiring
+│   ├── file1.json
+│   └── file2.txt
+├── buildings/          # Building demolitions (NEW!)
+│   ├── miami_dade_demolition_permit.json
+│   └── downtown_office_demolition.txt
+└── government/         # Government contracts, bids
+    └── contract_awards.json
 ```
 
-### Reset Database
+**Pro tip:** You can create subdirectories and use `merge.txt` files to combine multiple sources!
+
+---
+
+## 🔧 Configuration (.env)
+
+### Database (Required)
 ```bash
-# WARNING: Deletes all data
-python main.py reset
+DATABASE_URL=postgresql://postgres.qmnsqztyduzvfimnkhtu:Wk2sQvM2fFjPlgLM@aws-1-us-west-1.pooler.supabase.com:5432/postgres
 ```
 
-### View Logs
+### LLM Provider (Choose one)
 ```bash
-# Run with verbose output
-python main.py run 2>&1 | tee pipeline.log
+# Option 1: Mock (no API key needed - for testing)
+LLM_PROVIDER=mock
+
+# Option 2: OpenAI
+LLM_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+
+# Option 3: Anthropic
+LLM_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+### Search Provider (Choose one)
+```bash
+# Option 1: Mock (no API key needed - for testing)
+SEARCH_PROVIDER=mock
+
+# Option 2: Tavily
+SEARCH_PROVIDER=tavily
+TAVILY_API_KEY=tvly-...
+
+# Option 3: Exa
+SEARCH_PROVIDER=exa
+EXA_API_KEY=...
+```
+
+### Building Processing (NEW!)
+```bash
+BUILDING_PROCESSING_ENABLED=true
+BUILDING_COMPANY_SEARCH_MAX_RESULTS=15
+BUILDING_EVENT_TYPE=contraction  # Event type for companies in demolished buildings
 ```
 
 ---
 
-## What's Next?
+## 🏗️ How Building Processing Works
 
-See PRODUCTION_GUIDE.md for scaling to production.
+1. **File Detection**: Pipeline detects files in `buildings/` directory
+2. **Extract Building Info**: LLM extracts address, demolition date, reason
+3. **Search for Companies**: Web search finds companies at that address
+4. **Extract Company List**: LLM parses search results to find company names
+5. **Create Events**: Creates `contraction` event for each company
+6. **Enrichment**: Companies get enriched like any other lead
+7. **Scoring**: Scored based on office relocation urgency
+
+**Example flow:**
+```
+buildings/demolition_permit.json
+  ↓ (Extract building info)
+"123 Main St, Miami, FL - Demolition scheduled 2024-03-15"
+  ↓ (Search companies)
+Google: "companies at 123 Main St Miami FL"
+  ↓ (Extract companies)
+["ACME Corp (Suite 200)", "TechStart Inc (Floor 3)"]
+  ↓ (Create events)
+Event: ACME Corp - contraction - office_relocation_urgent
+Event: TechStart Inc - contraction - office_relocation_urgent
+  ↓ (Enrich & Score)
+Lead: ACME Corp - Score: 65 (urgent office space need)
+```
+
+---
+
+## 🐛 Troubleshooting
+
+### Connection Failed
+```bash
+# Check what's loaded
+python -c "from dotenv import load_dotenv; import os; load_dotenv(); print(os.getenv('DATABASE_URL'))"
+
+# Verify tables exist
+python test_supabase_connection.py
+
+# Check Supabase project status
+# Visit: https://app.supabase.com/project/qmnsqztyduzvfimnkhtu
+```
+
+### No Events Created
+```bash
+# Check if files are being detected
+# Pipeline will log: "Found X files to process"
+
+# Check LLM provider is configured
+# If using mock, extraction will use dummy data
+
+# Check building processing is enabled
+echo $BUILDING_PROCESSING_ENABLED  # Should be "true"
+```
+
+### Low Lead Scores
+```bash
+# Leads need multiple signals to score high
+# Add more data sources to raw_data_bucket/
+
+# Check enrichment is enabled
+ENRICHMENT_ENABLED=true  # In .env file
+```
+
+---
+
+## 📚 Next Steps
+
+1. ✅ Run `python verify_setup.py` to ensure everything works
+2. ✅ Run `python main.py` to process your data
+3. ✅ View results in Supabase Dashboard
+4. 🎯 Add more data files to `raw_data_bucket/`
+5. 🎯 Adjust scoring rules in `src/pipeline/lead_scorer.py`
+6. 🎯 Build a UI using Supabase REST API (optional)
+
+---
+
+## 🎉 You're Ready!
+
+Your pipeline now supports:
+- ✅ Company news & announcements
+- ✅ Building demolitions (finds companies at addresses)
+- ✅ Government contracts
+- ✅ Automatic enrichment
+- ✅ Smart lead scoring
+- ✅ Supabase cloud database
+
+**Run `python verify_setup.py` now to get started!** 🚀
