@@ -397,3 +397,177 @@ RELEVANCE_CHECK_USER_PROMPT_TEMPLATE = """Is this document relevant to the busin
 </document>
 
 Return JSON with is_relevant and relevance_reasoning:"""
+
+
+# ============================================================================
+# Building Demolition Extraction Prompts
+# ============================================================================
+
+BUILDING_EXTRACTION_SYSTEM_PROMPT = """You are an expert at extracting building demolition information from various documents.
+
+Your task:
+1. Determine if this document mentions a building being demolished, destroyed, or torn down
+2. If yes, extract detailed information about the building and demolition
+3. If no, return is_demolition_related=false
+
+WHAT TO LOOK FOR:
+- Demolition permits (structured JSON or text)
+- News articles about building demolitions
+- Real estate reports about redevelopment requiring demolition
+- Government notices about building removal
+- Commercial property demolition announcements
+
+FOCUS ON COMMERCIAL BUILDINGS:
+- Office buildings
+- Commercial properties with business tenants
+- Mixed-use buildings with commercial space
+- NOT purely residential apartment buildings (unless they have commercial space)
+
+CRITICAL RULES:
+1. Return ONLY valid JSON - no additional text, no markdown
+2. Extract the FULL street address (critical for finding companies)
+3. Extract any dates mentioned (demolition date, permit issue date, etc.)
+4. Note if the building is commercial (offices) vs residential
+5. Be conservative with confidence - only use >0.8 when very certain
+
+EXTRACTION TARGETS:
+- address: Full street address including suite/unit if mentioned
+- building_name: Name of building if mentioned (e.g., "Empire Office Tower")
+- city, state, zip_code: Location details
+- demolition_date: When demolition will occur (ISO format preferred, but accept any date format)
+- demolition_reason: Why it's being demolished (redevelopment, safety, etc.)
+- permit_id: Permit or reference number if available
+- is_commercial: True if it's a commercial/office building
+- extraction_confidence: 0.0-1.0 based on clarity of information
+
+ADDRESS EXTRACTION IS CRITICAL:
+The address will be used to search for companies at this location. Extract:
+- Street number and name
+- Suite/unit numbers if mentioned
+- City and state
+- ZIP code if available
+
+Examples of good addresses:
+- "11401 SW 232 ST Unit 5, Miami, FL"
+- "456 Market Street, San Francisco, CA 94103"
+- "1234 Main Avenue, Suite 200, Austin, TX 78701"
+
+DATE FORMATS (accept any, try to standardize):
+- ISO: "2026-01-08"
+- Natural: "January 8, 2026"
+- Timestamps: Convert to readable format
+- Relative: "Q2 2026", "Summer 2026" → note in estimated_date field"""
+
+
+BUILDING_EXTRACTION_USER_PROMPT_TEMPLATE = """Extract building demolition information from this document:
+
+<document>
+{document_content}
+</document>
+
+<source_metadata>
+File: {file_path}
+</source_metadata>
+
+Return a JSON object with this structure:
+{{
+  "building_info": {{
+    "address": "REQUIRED - full street address",
+    "building_name": "optional - name of building",
+    "city": "optional - city name",
+    "state": "optional - state/province",
+    "zip_code": "optional - ZIP/postal code",
+    "demolition_date": "optional - ISO format preferred (YYYY-MM-DD)",
+    "demolition_reason": "optional - why being demolished",
+    "estimated_date": "optional - if exact date unknown (e.g., 'Q2 2026')",
+    "permit_id": "optional - permit or reference ID",
+    "source_url": "optional - URL if mentioned",
+    "is_commercial": true/false/null,
+    "building_use": "optional - type of building",
+    "is_demolition_related": true/false,
+    "extraction_confidence": 0.0-1.0
+  }},
+  "reasoning": "explain why this is/isn't about demolition and confidence level"
+}}
+
+IMPORTANT:
+- If NOT about building demolition, return: {{"building_info": {{"is_demolition_related": false, "address": "", "extraction_confidence": 0.0}}, "reasoning": "..."}}
+- If IS about demolition, extract all available fields
+- Address is REQUIRED if is_demolition_related=true
+- Use null for missing optional fields, NOT empty strings
+
+JSON OUTPUT:"""
+
+
+# ============================================================================
+# Company Search Extraction Prompts (from web search results)
+# ============================================================================
+
+COMPANY_SEARCH_EXTRACTION_SYSTEM_PROMPT = """You are an expert at identifying companies from web search results.
+
+Your task:
+Parse search results about businesses at a specific address and extract a list of companies located there.
+
+CRITICAL RULES:
+1. Return ONLY valid JSON - no additional text, no markdown
+2. Only extract companies CLEARLY associated with the address
+3. Include suite/floor numbers if mentioned
+4. Extract website URLs if found in search results
+5. Be conservative - don't guess or assume
+6. Focus on COMMERCIAL businesses (not residential tenants)
+
+WHAT TO EXTRACT:
+For each company found at the address:
+- company_name: Exact name as found in search results
+- suite_or_floor: Suite number, floor, or unit designation
+- website: Company website URL if found
+- domain: Just the domain (e.g., "acme.com") if found
+- phone: Phone number if found
+- extraction_confidence: 0.0-1.0 based on clarity
+- evidence_quote: Quote from search result confirming presence at address
+
+CONFIDENCE SCORING:
+- 0.9-1.0: Company explicitly listed at this exact address with suite number
+- 0.7-0.8: Company clearly associated with address but missing some details
+- 0.5-0.6: Company likely at address but some ambiguity
+- <0.5: Uncertain association
+
+WHAT TO IGNORE:
+- Residential tenants
+- Retail stores (unless specifically requested)
+- Temporary or event-based occupancy
+- Ambiguous mentions without clear confirmation
+
+QUALITY OVER QUANTITY:
+Better to return 5 high-confidence companies than 20 uncertain ones."""
+
+
+COMPANY_SEARCH_EXTRACTION_USER_PROMPT_TEMPLATE = """Extract companies located at this building address:
+
+Building Address: {address}
+{building_name_context}
+
+<search_results>
+{search_results}
+</search_results>
+
+Return a JSON array of companies found at this address:
+[
+  {{
+    "company_name": "Company Name",
+    "suite_or_floor": "Suite 400" or null,
+    "website": "https://company.com" or null,
+    "domain": "company.com" or null,
+    "phone": "555-1234" or null,
+    "extraction_confidence": 0.0-1.0,
+    "evidence_quote": "quote from search results confirming location"
+  }}
+]
+
+IMPORTANT:
+- Return empty array [] if no companies found
+- Only include companies with clear evidence of being at this address
+- Include evidence_quote to justify each extraction
+- Use null for missing fields
+
+JSON OUTPUT:"""

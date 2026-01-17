@@ -390,7 +390,8 @@ class RawFileReader:
                 entries.append({
                     "type": "file",
                     "path": str(item),
-                    "files": [str(item)]
+                    "files": [str(item)],
+                    "data_source_type": self.detect_data_source_type(str(item))
                 })
 
             elif item.is_dir():
@@ -406,7 +407,8 @@ class RawFileReader:
                             "type": "merged",
                             "path": str(item),
                             "files": merged_files,
-                            "merge_patterns": merge_patterns
+                            "merge_patterns": merge_patterns,
+                            "data_source_type": self.detect_data_source_type(str(item))
                         })
                 else:
                     # Directory without merge.txt - check if it has files directly in it
@@ -419,7 +421,8 @@ class RawFileReader:
                                 entries.append({
                                     "type": "file",
                                     "path": str(file_path),
-                                    "files": [str(file_path)]
+                                    "files": [str(file_path)],
+                                    "data_source_type": self.detect_data_source_type(str(file_path))
                                 })
                     # Else: directory with only subdirectories - ignore it
 
@@ -432,3 +435,45 @@ class RawFileReader:
             return str(path.relative_to(self.bucket_path))
         except ValueError:
             return str(path)
+
+    def detect_data_source_type(self, file_path: str) -> str:
+        """
+        Detect data source type from file path structure.
+
+        Looks for 'companies', 'buildings', or 'government' in the path.
+
+        Args:
+            file_path: Path to file (absolute or relative)
+
+        Returns:
+            Data source type: "companies", "buildings", or "government"
+            Defaults to "companies" if no type found in path
+
+        Examples:
+            "companies/news.html" → "companies"
+            "buildings/permits/doc.json" → "buildings"
+            "government/rfps/bid.pdf" → "government"
+            "legacy_file.txt" → "companies" (default)
+        """
+        path = Path(file_path)
+
+        # Get path parts relative to bucket
+        try:
+            relative_path = path.relative_to(self.bucket_path)
+            path_parts = relative_path.parts
+        except ValueError:
+            # If not under bucket_path, use full path
+            path_parts = path.parts
+
+        # Check for data source type in path parts
+        for part in path_parts:
+            part_lower = part.lower()
+            if part_lower == "buildings":
+                return "buildings"
+            elif part_lower == "companies":
+                return "companies"
+            elif part_lower == "government":
+                return "government"
+
+        # Default to companies if no type detected
+        return "companies"

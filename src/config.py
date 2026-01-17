@@ -40,6 +40,14 @@ SERPAPI_KEY = os.getenv("SERPAPI_KEY", "")
 ENRICHMENT_ENABLED = os.getenv("ENRICHMENT_ENABLED", "true").lower() == "true"
 ENRICHMENT_FRESHNESS_DAYS = int(os.getenv("ENRICHMENT_FRESHNESS_DAYS", "30"))
 
+# Building Processing Configuration
+BUILDING_PROCESSING_ENABLED = os.getenv("BUILDING_PROCESSING_ENABLED", "true").lower() == "true"
+BUILDING_COMPANY_SEARCH_MAX_RESULTS = int(os.getenv("BUILDING_COMPANY_SEARCH_MAX_RESULTS", "15"))
+BUILDING_EVENT_TYPE = os.getenv("BUILDING_EVENT_TYPE", "contraction")  # Event type for companies needing relocation
+
+# Model configuration helper (for building processor and other modules)
+LLM_MODEL_EXPENSIVE = os.getenv("LLM_MODEL_EXPENSIVE", LLM_EXTRACTION_MODEL)
+
 # Business Objective (defines relevance criteria)
 BUSINESS_OBJECTIVE = os.getenv(
     "BUSINESS_OBJECTIVE",

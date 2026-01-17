@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 
 from src.config import (
     RAW_DATA_BUCKET, ENRICHMENT_ENABLED, TWO_STAGE_EXTRACTION,
-    PARALLEL_PROCESSING, MAX_WORKERS, RATE_LIMIT_REQUESTS_PER_MINUTE
+    PARALLEL_PROCESSING, MAX_WORKERS, RATE_LIMIT_REQUESTS_PER_MINUTE,
+    BUILDING_PROCESSING_ENABLED
 )
 from src.db.session import get_db
 from src.db.models import RawEvent, Entity, Event, LeadCurrent
@@ -280,7 +281,7 @@ class PipelineRunner:
 
         Args:
             db: Database session
-            entry: Entry dict with 'type', 'path', and 'files' keys
+            entry: Entry dict with 'type', 'path', 'files', and 'data_source_type' keys
             quiet: If True, suppress verbose output (for parallel processing)
 
         Returns:
@@ -291,6 +292,14 @@ class PipelineRunner:
             if not quiet:
                 print(msg)
 
+        # Check data source type and route accordingly
+        data_source_type = entry.get('data_source_type', 'companies')
+
+        # Route to building processor if this is a building data source
+        if data_source_type == 'buildings' and BUILDING_PROCESSING_ENABLED:
+            return self._process_building_entry(db, entry, quiet)
+
+        # Standard processing for companies and government data sources
         # Get content based on entry type
         if entry['type'] == 'merged':
             # Merge multiple files
@@ -447,6 +456,166 @@ class PipelineRunner:
         # Mark as processed (even with some failures)
         raw_event.status = "PROCESSED"
         success_msg = f"File processing complete: {processed_count}/{len(extraction.events)} events processed"
+        if failed_events:
+            success_msg += f", {len(failed_events)} failed"
+        _print(f"\n✓ {success_msg}")
+        return 'processed'
+
+    def _process_building_entry(self, db: Session, entry: dict, quiet: bool = False) -> str:
+        """Process a building demolition entry.
+
+        This is a specialized processor for building data sources that:
+        1. Extracts building demolition information
+        2. Searches for companies at the building address
+        3. Creates events for each company found
+        4. Processes events through standard enrichment/scoring pipeline
+
+        Args:
+            db: Database session
+            entry: Entry dict with 'type', 'path', and 'files' keys
+            quiet: If True, suppress verbose output
+
+        Returns:
+            Status string: 'processed', 'skipped', or 'failed'
+        """
+        from src.pipeline.buildings_processor import process_building_document
+
+        def _print(msg):
+            """Conditional print based on quiet mode."""
+            if not quiet:
+                print(msg)
+
+        # Get content based on entry type
+        if entry['type'] == 'merged':
+            # Merge multiple files
+            from pathlib import Path
+            directory = Path(entry['path'])
+            merge_patterns = entry['merge_patterns']
+
+            _print(f"→ [BUILDING] Merging {len(entry['files'])} files from {directory.name}/...")
+            content, merged_files = self.reader.merge_directory_files(directory, merge_patterns)
+            file_path = str(directory)
+            _print(f"✓ Merged {len(merged_files)} files: {len(content)} chars")
+        else:
+            # Process single file
+            file_path = entry['path']
+            content, file_type = self.reader.read_file(file_path)
+            _print(f"✓ [BUILDING] Read file ({file_type}): {len(content)} chars")
+
+        # Check if already processed (deduplication)
+        content_hash = compute_content_hash(content)
+        existing = db.query(RawEvent).filter(RawEvent.content_hash == content_hash).first()
+
+        if existing:
+            if existing.status == "PROCESSED":
+                _print(f"⊙ Building file already processed (hash: {content_hash[:8]}...), skipping")
+                return 'skipped'
+            else:
+                _print(f"⊙ Building file exists but not processed, reprocessing...")
+                raw_event = existing
+        else:
+            # Create raw event record
+            raw_event = RawEvent(
+                source="local_bucket",
+                file_path=file_path,
+                content_hash=content_hash,
+                status="NEW"
+            )
+            db.add(raw_event)
+            db.flush()
+
+        # Process building document
+        _print("→ [BUILDING] Extracting building demolition info...")
+        try:
+            result = process_building_document(
+                content=content,
+                file_path=file_path,
+                llm_client=self.normalizer.llm_client,
+                search_client=self.enricher.search_client
+            )
+        except Exception as e:
+            raw_event.status = "FAILED"
+            raw_event.error = f"Building processing failed: {str(e)}"
+            self.logger.error(f"Building processing error for {file_path}: {e}", exc_info=True)
+            _print(f"✗ Building processing failed: {str(e)}")
+            return 'failed'
+
+        # Handle result
+        if result['status'] == 'skipped':
+            raw_event.status = "FAILED"
+            raw_event.error = f"Not demolition-related: {result.get('reason', 'unknown')}"
+            _print(f"⊘ Not a building demolition document")
+            return 'skipped'
+
+        if result['status'] == 'completed' and result['companies_found'] == 0:
+            raw_event.status = "PROCESSED"
+            raw_event.error = f"No companies found at address: {result.get('reason', 'unknown')}"
+            _print(f"⊙ Building processed but no companies found at {result['building_address']}")
+            return 'processed'
+
+        # Process events for each company found
+        events = result.get('events', [])
+        if not events:
+            raw_event.status = "PROCESSED"
+            _print(f"⊙ No events created for {result['building_address']}")
+            return 'processed'
+
+        _print(f"✓ Building: {result['building_address']}")
+        _print(f"✓ Found {result['companies_found']} companies, created {result['events_created']} events")
+
+        # Process each event through standard pipeline
+        MIN_CONFIDENCE = 0.3
+        processed_count = 0
+        failed_events = []
+
+        for idx, normalized_event in enumerate(events, 1):
+            _print(f"\n  Company {idx}/{len(events)}:")
+            _print(f"  → Entity: {normalized_event.entity_name_raw}")
+            _print(f"  → Confidence: {normalized_event.extraction_confidence:.2f}")
+
+            # Check minimum confidence threshold
+            if normalized_event.extraction_confidence < MIN_CONFIDENCE:
+                _print(f"  ⊘ Skipped (confidence too low: {normalized_event.extraction_confidence:.2f} < {MIN_CONFIDENCE})")
+                continue
+
+            # Process this event with error handling
+            try:
+                self._process_event(db, normalized_event, file_path, "local_bucket", quiet=quiet)
+                processed_count += 1
+            except Exception as e:
+                error_msg = f"Failed to process event for {normalized_event.entity_name_canonical}: {str(e)}"
+                self.logger.error(error_msg, exc_info=True)
+                _print(f"  ✗ Error: {error_msg}")
+
+                failed_events.append({
+                    'entity_name': normalized_event.entity_name_canonical,
+                    'event_type': normalized_event.event_type,
+                    'error': str(e),
+                    'file_path': file_path
+                })
+                continue
+
+        # Report results
+        if failed_events:
+            _print(f"\n⚠ {len(failed_events)} event(s) failed to process (see {self.log_file} for details)")
+            for failed in failed_events:
+                _print(f"  ✗ {failed['entity_name']}: {failed['error'][:80]}")
+
+        if processed_count == 0:
+            if len(events) == len(failed_events):
+                raw_event.status = "FAILED"
+                raw_event.error = f"All {len(events)} company events failed to process"
+                _print(f"\n✗ All company events failed")
+                return 'failed'
+            else:
+                raw_event.status = "FAILED"
+                raw_event.error = f"All {len(events)} company events below confidence threshold"
+                _print(f"\n✗ All company events filtered out (low confidence)")
+                return 'failed'
+
+        # Mark as processed
+        raw_event.status = "PROCESSED"
+        success_msg = f"Building processing complete: {processed_count}/{len(events)} company events processed"
         if failed_events:
             success_msg += f", {len(failed_events)} failed"
         _print(f"\n✓ {success_msg}")

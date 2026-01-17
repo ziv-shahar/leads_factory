@@ -182,3 +182,60 @@ def get_normalized_name(canonical_name: str) -> str:
     # Remove all non-alphanumeric characters
     normalized = re.sub(r'[^A-Z0-9]', '', canonical_name.upper())
     return normalized
+
+
+# ============================================================================
+# Building Demolition Schemas
+# ============================================================================
+
+class BuildingInfo(BaseModel):
+    """Extracted building demolition information from any source (permits, news, reports)."""
+
+    # Core fields
+    address: str = Field(..., description="Full street address of the building")
+    building_name: Optional[str] = Field(None, description="Name of the building if mentioned")
+
+    # Location details
+    city: Optional[str] = Field(None, description="City")
+    state: Optional[str] = Field(None, description="State/province")
+    zip_code: Optional[str] = Field(None, description="ZIP/postal code")
+
+    # Demolition details
+    demolition_date: Optional[str] = Field(None, description="Date of demolition (ISO format or natural language)")
+    demolition_reason: Optional[str] = Field(None, description="Reason for demolition")
+    estimated_date: Optional[str] = Field(None, description="Estimated demolition timeframe if exact date unknown")
+
+    # Administrative details
+    permit_id: Optional[str] = Field(None, description="Permit or reference ID")
+    source_url: Optional[str] = Field(None, description="URL to source document/notice")
+
+    # Building characteristics
+    is_commercial: Optional[bool] = Field(None, description="True if commercial building (offices, not residential)")
+    building_use: Optional[str] = Field(None, description="Type of building use")
+
+    # Extraction quality
+    is_demolition_related: bool = Field(..., description="True if document is about building demolition/destruction")
+    extraction_confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence in extraction (0.0-1.0)")
+
+
+class CompanyAtBuilding(BaseModel):
+    """Company found at a building address via web search."""
+
+    company_name: str = Field(..., description="Company name")
+    suite_or_floor: Optional[str] = Field(None, description="Suite number, floor, or unit designation")
+
+    # Contact info if found
+    website: Optional[str] = Field(None, description="Company website URL")
+    domain: Optional[str] = Field(None, description="Company domain (e.g., 'acme.com')")
+    phone: Optional[str] = Field(None, description="Phone number")
+
+    # Extraction quality
+    extraction_confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence this company is at the address")
+    evidence_quote: Optional[str] = Field(None, description="Quote from search result confirming presence at address")
+
+
+class BuildingExtractionResult(BaseModel):
+    """Result of extracting building info from a document."""
+
+    building_info: Optional[BuildingInfo] = Field(None, description="Building information if demolition-related")
+    reasoning: str = Field(..., description="Explanation of extraction decision")
