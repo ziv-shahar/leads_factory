@@ -115,10 +115,11 @@ class SupabaseQuery:
 
     def _dict_to_model(self, data: Dict) -> Any:
         """Convert dictionary to model instance."""
-        # Create instance without calling __init__
-        instance = object.__new__(self.model_class)
+        # Create a properly initialized instance
+        # SQLAlchemy models need their __init__ called to set up instrumentation
+        instance = self.model_class()
 
-        # Set attributes
+        # Set attributes from data
         for key, value in data.items():
             # Convert ISO datetime strings to datetime objects
             if isinstance(value, str) and ('_at' in key or '_time' in key):
@@ -126,7 +127,10 @@ class SupabaseQuery:
                     value = datetime.fromisoformat(value.replace('Z', '+00:00'))
                 except:
                     pass
-            setattr(instance, key, value)
+
+            # Only set attribute if the model has this column
+            if hasattr(instance, key):
+                setattr(instance, key, value)
 
         return instance
 
@@ -193,18 +197,17 @@ class SupabaseSession:
 
     def _model_to_dict(self, instance: Any) -> Dict:
         """Convert model instance to dictionary for Supabase."""
+        from sqlalchemy import inspect as sqla_inspect
+
         data = {}
 
-        # Get all column attributes
-        for key in dir(instance):
-            if key.startswith('_') or key in ['metadata', 'registry']:
-                continue
+        # Get mapper for this instance to access columns
+        mapper = sqla_inspect(instance.__class__)
 
+        # Only iterate over actual database columns
+        for column in mapper.columns:
+            key = column.key
             value = getattr(instance, key, None)
-
-            # Skip methods, relationships, and None values for auto-increment IDs
-            if callable(value) or hasattr(value, '__relationship__'):
-                continue
 
             # Skip auto-increment IDs if they're None
             if key == 'id' and value is None:
