@@ -13,6 +13,11 @@ RAW_DATA_BUCKET = PROJECT_ROOT / "raw_data_bucket/"
 # Database
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://leadgen_user:leadgen_pass@localhost:5432/leadgen_db")
 
+# Supabase Client Configuration (REST API - alternative to direct PostgreSQL)
+USE_SUPABASE_CLIENT = os.getenv("USE_SUPABASE_CLIENT", "false").lower() == "true"
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+
 # LLM Configuration
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai")  # openai, anthropic, mock
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
