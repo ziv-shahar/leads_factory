@@ -531,7 +531,7 @@ class PipelineRunner:
                 content=content,
                 file_path=file_path,
                 llm_client=self.normalizer.llm,
-                search_client=self.enricher.search_client
+                search_client=self.enricher.search
             )
         except Exception as e:
             raw_event.status = "FAILED"
