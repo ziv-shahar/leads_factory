@@ -530,7 +530,7 @@ class PipelineRunner:
             result = process_building_document(
                 content=content,
                 file_path=file_path,
-                llm_client=self.normalizer.llm_client,
+                llm_client=self.normalizer.llm,
                 search_client=self.enricher.search_client
             )
         except Exception as e:
