@@ -440,7 +440,9 @@ class RawFileReader:
         """
         Detect data source type from file path structure.
 
-        Looks for 'companies', 'buildings', or 'government' in the path.
+        Supports both old and new folder structures:
+        - Old: companies/, buildings/, government/
+        - New: finance_news/, permits/, government_opportunities/
 
         Args:
             file_path: Path to file (absolute or relative)
@@ -450,10 +452,18 @@ class RawFileReader:
             Defaults to "companies" if no type found in path
 
         Examples:
-            "companies/news.html" → "companies"
-            "buildings/permits/doc.json" → "buildings"
-            "government/rfps/bid.pdf" → "government"
-            "legacy_file.txt" → "companies" (default)
+            Old structure:
+                "companies/news.html" → "companies"
+                "buildings/permits/doc.json" → "buildings"
+                "government/rfps/bid.pdf" → "government"
+
+            New structure:
+                "finance_news/fundraising.json" → "companies"
+                "permits/demolition.json" → "buildings"
+                "government_opportunities/rfp.json" → "government"
+
+            Default:
+                "legacy_file.txt" → "companies" (default)
         """
         path = Path(file_path)
 
@@ -468,11 +478,22 @@ class RawFileReader:
         # Check for data source type in path parts
         for part in path_parts:
             part_lower = part.lower()
+
+            # Old structure names
             if part_lower == "buildings":
                 return "buildings"
             elif part_lower == "companies":
                 return "companies"
             elif part_lower == "government":
+                return "government"
+
+            # New structure names (mapped to old types)
+            elif part_lower == "finance_news":
+                return "companies"
+            elif part_lower == "permits":
+                return "buildings"
+            elif part_lower in ["government_opportunities", "government_oppertunities"]:
+                # Support both correct and typo spellings
                 return "government"
 
         # Default to companies if no type detected
