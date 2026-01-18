@@ -549,19 +549,37 @@ class PipelineRunner:
 
         if result['status'] == 'completed' and result['companies_found'] == 0:
             raw_event.status = "PROCESSED"
-            raw_event.error = f"No companies found at address: {result.get('reason', 'unknown')}"
-            _print(f"⊙ Building processed but no companies found at {result['building_address']}")
+            raw_event.error = f"No companies found: {result.get('reason', 'unknown')}"
+
+            # Handle multi-permit vs single building display
+            if 'permits_processed' in result:
+                _print(f"⊙ Processed {result['permits_processed']} permits but no companies found")
+            else:
+                _print(f"⊙ Building processed but no companies found at {result.get('building_address')}")
             return 'processed'
 
         # Process events for each company found
         events = result.get('events', [])
         if not events:
             raw_event.status = "PROCESSED"
-            _print(f"⊙ No events created for {result['building_address']}")
+
+            # Handle multi-permit vs single building display
+            if 'permits_processed' in result:
+                _print(f"⊙ No events created from {result.get('permits_processed')} permits")
+            else:
+                _print(f"⊙ No events created for {result.get('building_address')}")
             return 'processed'
 
-        _print(f"✓ Building: {result['building_address']}")
-        _print(f"✓ Found {result['companies_found']} companies, created {result['events_created']} events")
+        # Display summary based on processing mode
+        if 'permits_processed' in result:
+            # Multiple permits mode
+            _print(f"✓ Processed {result['permits_processed']} permits")
+            _print(f"✓ Found companies at {result['permits_with_companies']} buildings")
+            _print(f"✓ Total: {result['companies_found']} companies, {result['events_created']} events")
+        else:
+            # Single building mode (LLM extraction)
+            _print(f"✓ Building: {result.get('building_address')}")
+            _print(f"✓ Found {result['companies_found']} companies, created {result['events_created']} events")
 
         # Process each event through standard pipeline
         MIN_CONFIDENCE = 0.3

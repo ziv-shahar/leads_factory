@@ -445,6 +445,141 @@ def create_company_events(
     return events
 
 
+def parse_permits_from_json(content: str) -> List[Dict[str, Any]]:
+    """
+    Parse permits from JSON file.
+
+    Handles both:
+    - Structured format: {"permits": [...]}
+    - Single permit: {...}
+    - Plain text/HTML (returns empty list to fall back to LLM)
+
+    Args:
+        content: File content
+
+    Returns:
+        List of permit dictionaries
+    """
+    try:
+        data = json.loads(content)
+
+        # Check for permits array
+        if isinstance(data, dict) and "permits" in data:
+            permits = data["permits"]
+            if isinstance(permits, list):
+                logger.info(f"Found {len(permits)} permits in structured JSON")
+                return permits
+
+        # Single permit object
+        if isinstance(data, dict):
+            # Check if it looks like a permit (has address or permit-related fields)
+            if any(key in data for key in ["address", "permit_type", "id", "folio"]):
+                logger.info("Found single permit in JSON")
+                return [data]
+
+        logger.info("JSON doesn't contain permit structure, will use LLM extraction")
+        return []
+
+    except json.JSONDecodeError:
+        # Not JSON - could be HTML, text, PDF, etc.
+        logger.info("Content is not JSON, will use LLM extraction")
+        return []
+
+
+def process_single_permit(
+    permit_data: Dict[str, Any],
+    permit_index: int,
+    total_permits: int,
+    llm_client: Any,
+    search_client: SearchClient,
+    file_path: str
+) -> Dict[str, Any]:
+    """
+    Process a single permit to find companies at the building.
+
+    Args:
+        permit_data: Permit dictionary with address, id, etc.
+        permit_index: Index of this permit (for logging)
+        total_permits: Total number of permits being processed
+        llm_client: LLM client
+        search_client: Search client
+        file_path: Source file path
+
+    Returns:
+        Dict with processing results
+    """
+    logger.info(f"Processing permit {permit_index}/{total_permits}: {permit_data.get('id', 'unknown')}")
+
+    # Extract key fields from permit
+    address = permit_data.get("address", "").strip()
+    permit_id = permit_data.get("id")
+    issue_date = permit_data.get("issue_date")
+    description = permit_data.get("description", "").strip()
+
+    if not address or len(address) < 5:
+        logger.warning(f"Permit {permit_id} has invalid address: {address}")
+        return {
+            "status": "skipped",
+            "reason": "invalid_address",
+            "permit_id": permit_id,
+            "events": []
+        }
+
+    # Create BuildingInfo from permit data
+    building_info = BuildingInfo(
+        address=address,
+        building_name=None,
+        city=permit_data.get("city"),
+        state=None,  # Would need to parse from address
+        is_demolition_related=True,
+        demolition_date=issue_date,
+        demolition_reason=description,
+        permit_id=permit_id,
+        source_url=None,
+        extraction_confidence=1.0  # Direct from permit data
+    )
+
+    # Search for companies at this address
+    search_results = search_companies_at_address(building_info, search_client)
+
+    if not search_results:
+        logger.warning(f"No search results for {address}")
+        return {
+            "status": "completed",
+            "reason": "no_search_results",
+            "permit_id": permit_id,
+            "address": address,
+            "events": []
+        }
+
+    # Extract companies from search results
+    companies = extract_companies_from_search(search_results, building_info, llm_client)
+
+    if not companies:
+        logger.warning(f"No companies found at {address}")
+        return {
+            "status": "completed",
+            "reason": "no_companies_found",
+            "permit_id": permit_id,
+            "address": address,
+            "events": []
+        }
+
+    # Create events for each company
+    events = create_company_events(companies, building_info, file_path)
+
+    logger.info(f"Permit {permit_id}: Found {len(companies)} companies, created {len(events)} events")
+
+    return {
+        "status": "completed",
+        "permit_id": permit_id,
+        "address": address,
+        "companies_found": len(companies),
+        "events_created": len(events),
+        "events": events
+    }
+
+
 def process_building_document(
     content: str,
     file_path: str,
@@ -454,11 +589,9 @@ def process_building_document(
     """
     Complete building document processing pipeline.
 
-    Steps:
-    1. Extract building info (LLM)
-    2. Search for companies at address (Web Search)
-    3. Extract company list (LLM)
-    4. Create events for each company
+    Handles two modes:
+    1. Structured JSON with permits array - processes each permit separately
+    2. Unstructured text/HTML - uses LLM to extract building info
 
     Args:
         content: Document content
@@ -469,6 +602,51 @@ def process_building_document(
     Returns:
         Dict with processing results and list of events
     """
+    # Try to parse as structured permits JSON first
+    permits = parse_permits_from_json(content)
+
+    if permits:
+        # Process all permits in the file
+        logger.info(f"Processing {len(permits)} permits from structured JSON")
+
+        all_events = []
+        total_companies = 0
+        permits_with_companies = 0
+
+        for idx, permit_data in enumerate(permits, 1):
+            result = process_single_permit(
+                permit_data=permit_data,
+                permit_index=idx,
+                total_permits=len(permits),
+                llm_client=llm_client,
+                search_client=search_client,
+                file_path=file_path
+            )
+
+            if result.get("events"):
+                all_events.extend(result["events"])
+                total_companies += result.get("companies_found", 0)
+                permits_with_companies += 1
+
+        logger.info(
+            f"Processed {len(permits)} permits: "
+            f"{permits_with_companies} had companies, "
+            f"{total_companies} total companies, "
+            f"{len(all_events)} events created"
+        )
+
+        return {
+            "status": "completed",
+            "permits_processed": len(permits),
+            "permits_with_companies": permits_with_companies,
+            "companies_found": total_companies,
+            "events_created": len(all_events),
+            "events": all_events
+        }
+
+    # Fallback: Use LLM to extract building info from unstructured content
+    logger.info("No structured permits found, using LLM extraction")
+
     result = {
         "status": "completed",
         "building_address": None,
@@ -477,7 +655,7 @@ def process_building_document(
         "events": []
     }
 
-    # Step 1: Extract building info
+    # Step 1: Extract building info with LLM
     building_info = extract_building_info(content, file_path, llm_client)
 
     if not building_info:
