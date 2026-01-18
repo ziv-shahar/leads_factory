@@ -299,7 +299,11 @@ class PipelineRunner:
         if data_source_type == 'buildings' and BUILDING_PROCESSING_ENABLED:
             return self._process_building_entry(db, entry, quiet)
 
-        # Standard processing for companies and government data sources
+        # Route to government opportunities processor if this is a government data source
+        if data_source_type == 'government':
+            return self._process_government_entry(db, entry, quiet)
+
+        # Standard processing for companies data sources
         # Get content based on entry type
         if entry['type'] == 'merged':
             # Merge multiple files
@@ -634,6 +638,155 @@ class PipelineRunner:
         # Mark as processed
         raw_event.status = "PROCESSED"
         success_msg = f"Building processing complete: {processed_count}/{len(events)} company events processed"
+        if failed_events:
+            success_msg += f", {len(failed_events)} failed"
+        _print(f"\n✓ {success_msg}")
+        return 'processed'
+
+    def _process_government_entry(self, db: Session, entry: dict, quiet: bool = False) -> str:
+        """Process a government opportunities entry.
+
+        This is a specialized processor for government data sources that:
+        1. Parses opportunities array from JSON
+        2. Extracts location from each opportunity
+        3. Creates events with entity names including location (agency + state)
+
+        Args:
+            db: Database session
+            entry: Entry dict with 'type', 'path', and 'files' keys
+            quiet: If True, suppress verbose output
+
+        Returns:
+            Status string: 'processed', 'skipped', or 'failed'
+        """
+        from src.pipeline.government_opportunities_processor import process_government_opportunities_document
+
+        def _print(msg):
+            """Conditional print based on quiet mode."""
+            if not quiet:
+                print(msg)
+
+        # Get content based on entry type
+        if entry['type'] == 'merged':
+            # Merge multiple files
+            from pathlib import Path
+            directory = Path(entry['path'])
+            merge_patterns = entry['merge_patterns']
+
+            _print(f"→ [GOVERNMENT] Merging {len(entry['files'])} files from {directory.name}/...")
+            content, merged_files = self.reader.merge_directory_files(directory, merge_patterns)
+            file_path = str(directory)
+            _print(f"✓ Merged {len(merged_files)} files: {len(content)} chars")
+        else:
+            # Process single file
+            file_path = entry['path']
+            content, file_type = self.reader.read_file(file_path)
+            _print(f"✓ [GOVERNMENT] Read file ({file_type}): {len(content)} chars")
+
+        # Check if already processed (deduplication)
+        content_hash = compute_content_hash(content)
+        existing = db.query(RawEvent).filter(RawEvent.content_hash == content_hash).first()
+
+        if existing:
+            if existing.status == "PROCESSED":
+                _print(f"⊙ Government file already processed (hash: {content_hash[:8]}...), skipping")
+                return 'skipped'
+            else:
+                _print(f"⊙ Government file exists but not processed, reprocessing...")
+                raw_event = existing
+        else:
+            # Create raw event record
+            raw_event = RawEvent(
+                source="local_bucket",
+                file_path=file_path,
+                content_hash=content_hash,
+                status="NEW"
+            )
+            db.add(raw_event)
+            db.flush()
+
+        # Process government opportunities document
+        _print("→ [GOVERNMENT] Processing opportunities...")
+        try:
+            result = process_government_opportunities_document(
+                content=content,
+                file_path=file_path
+            )
+        except Exception as e:
+            raw_event.status = "FAILED"
+            raw_event.error = f"Government processing failed: {str(e)}"
+            self.logger.error(f"Government processing error for {file_path}: {e}", exc_info=True)
+            _print(f"✗ Government processing failed: {str(e)}")
+            return 'failed'
+
+        # Check if we got structured data or need to fall back to LLM
+        if result['status'] == 'no_structured_data':
+            _print("⊙ No structured opportunities found, falling back to LLM extraction...")
+            # Fall back to standard content processing
+            return self._process_content(db, content, file_path, 'json', quiet)
+
+        # Process events for each opportunity found
+        events = result.get('events', [])
+        if not events:
+            raw_event.status = "PROCESSED"
+            _print(f"⊙ No events created from {result.get('opportunities_processed', 0)} opportunities")
+            return 'processed'
+
+        _print(f"✓ Processed {result['opportunities_processed']} opportunities, created {result['events_created']} events")
+
+        # Process each event through standard pipeline
+        MIN_CONFIDENCE = 0.3
+        processed_count = 0
+        failed_events = []
+
+        for idx, normalized_event in enumerate(events, 1):
+            _print(f"\n  Opportunity {idx}/{len(events)}:")
+            _print(f"  → Entity: {normalized_event.entity_name_raw}")
+            _print(f"  → Confidence: {normalized_event.extraction_confidence:.2f}")
+
+            # Check minimum confidence threshold
+            if normalized_event.extraction_confidence < MIN_CONFIDENCE:
+                _print(f"  ⊘ Skipped (confidence too low: {normalized_event.extraction_confidence:.2f} < {MIN_CONFIDENCE})")
+                continue
+
+            # Process this event with error handling
+            try:
+                self._process_event(db, normalized_event, file_path, "local_bucket", quiet=quiet)
+                processed_count += 1
+            except Exception as e:
+                error_msg = f"Failed to process event for {normalized_event.entity_name_canonical}: {str(e)}"
+                self.logger.error(error_msg, exc_info=True)
+                _print(f"  ✗ Error: {error_msg}")
+
+                failed_events.append({
+                    'entity_name': normalized_event.entity_name_canonical,
+                    'event_type': normalized_event.event_type,
+                    'error': str(e),
+                    'file_path': file_path
+                })
+                continue
+
+        # Report results
+        if failed_events:
+            _print(f"\n⚠ {len(failed_events)} event(s) failed to process (see {self.log_file} for details)")
+            for failed in failed_events:
+                _print(f"  ✗ {failed['entity_name']}: {failed['error'][:80]}")
+
+        if processed_count == 0:
+            if len(events) == len(failed_events):
+                raw_event.status = "FAILED"
+                raw_event.error = f"All {len(events)} opportunity events failed to process"
+                _print(f"\n✗ All opportunity events failed")
+                return 'failed'
+            else:
+                raw_event.status = "FAILED"
+                raw_event.error = f"All {len(events)} opportunity events below confidence threshold"
+                _print(f"\n✗ All opportunity events filtered out (low confidence)")
+                return 'failed'
+
+        # Mark as processed
+        raw_event.status = "PROCESSED"
+        success_msg = f"Government processing complete: {processed_count}/{len(events)} opportunity events processed"
         if failed_events:
             success_msg += f", {len(failed_events)} failed"
         _print(f"\n✓ {success_msg}")

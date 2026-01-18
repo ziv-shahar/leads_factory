@@ -325,6 +325,50 @@ def extract_companies_from_search(
         return []
 
 
+def extract_state_from_address(address: str, city: Optional[str] = None) -> Optional[str]:
+    """
+    Extract state from address string.
+
+    Args:
+        address: Full address string
+        city: City name if available
+
+    Returns:
+        State abbreviation or name
+    """
+    import re
+
+    # Common US state abbreviations pattern
+    state_pattern = r'\b([A-Z]{2})\b(?:\s+\d{5})?'  # Matches state code followed by optional ZIP
+    match = re.search(state_pattern, address)
+    if match:
+        return match.group(1)
+
+    # Full state names
+    states = {
+        'alabama': 'AL', 'alaska': 'AK', 'arizona': 'AZ', 'arkansas': 'AR',
+        'california': 'CA', 'colorado': 'CO', 'connecticut': 'CT', 'delaware': 'DE',
+        'florida': 'FL', 'georgia': 'GA', 'hawaii': 'HI', 'idaho': 'ID',
+        'illinois': 'IL', 'indiana': 'IN', 'iowa': 'IA', 'kansas': 'KS',
+        'kentucky': 'KY', 'louisiana': 'LA', 'maine': 'ME', 'maryland': 'MD',
+        'massachusetts': 'MA', 'michigan': 'MI', 'minnesota': 'MN', 'mississippi': 'MS',
+        'missouri': 'MO', 'montana': 'MT', 'nebraska': 'NE', 'nevada': 'NV',
+        'new hampshire': 'NH', 'new jersey': 'NJ', 'new mexico': 'NM', 'new york': 'NY',
+        'north carolina': 'NC', 'north dakota': 'ND', 'ohio': 'OH', 'oklahoma': 'OK',
+        'oregon': 'OR', 'pennsylvania': 'PA', 'rhode island': 'RI', 'south carolina': 'SC',
+        'south dakota': 'SD', 'tennessee': 'TN', 'texas': 'TX', 'utah': 'UT',
+        'vermont': 'VT', 'virginia': 'VA', 'washington': 'WA', 'west virginia': 'WV',
+        'wisconsin': 'WI', 'wyoming': 'WY', 'puerto rico': 'PR'
+    }
+
+    address_lower = address.lower()
+    for state_name, state_code in states.items():
+        if state_name in address_lower:
+            return state_code
+
+    return None
+
+
 def create_company_events(
     companies: List[CompanyAtBuilding],
     building_info: BuildingInfo,
@@ -334,6 +378,7 @@ def create_company_events(
     Create NormalizedEvent for each company found at the building.
 
     Each company gets an event indicating they need to relocate due to demolition.
+    Entity names include location (state) to separate regional operations.
 
     Args:
         companies: List of companies at the building
@@ -345,8 +390,19 @@ def create_company_events(
     """
     events = []
 
+    # Extract state from building address
+    state = extract_state_from_address(building_info.address, building_info.city)
+
     for company in companies:
         try:
+            # Create entity name with location
+            if state:
+                entity_name_raw = f"{company.company_name} - {state}"
+                entity_name_canonical = f"{company.company_name.upper().strip()}-{state}"
+            else:
+                entity_name_raw = company.company_name
+                entity_name_canonical = company.company_name.upper().strip()
+
             # Build summary
             summary_parts = [
                 f"{company.company_name} needs to relocate due to building demolition"
@@ -356,7 +412,7 @@ def create_company_events(
 
             summary = " ".join(summary_parts)
 
-            # Build key facts
+            # Build key facts - include location
             key_facts_dict = {
                 "current_address": building_info.address,
             }
@@ -375,11 +431,14 @@ def create_company_events(
             if building_info.permit_id:
                 key_facts_dict["permit_id"] = building_info.permit_id
 
+            # Add location to key_facts
             if building_info.city:
                 key_facts_dict["city"] = building_info.city
-
             if building_info.state:
                 key_facts_dict["state"] = building_info.state
+            elif state:
+                # Use extracted state if not in building_info
+                key_facts_dict["state"] = state
 
             # Create dynamic signal for office relocation urgency
             dynamic_signals = [
@@ -411,10 +470,10 @@ def create_company_events(
             if building_info.source_url:
                 entity_metadata["demolition_source_url"] = building_info.source_url
 
-            # Create normalized event
+            # Create normalized event with location-based entity name
             event = NormalizedEvent(
-                entity_name_raw=company.company_name,
-                entity_name_canonical=company.company_name.upper().strip(),
+                entity_name_raw=entity_name_raw,
+                entity_name_canonical=entity_name_canonical,
                 entity_type="company",
                 entity_metadata=entity_metadata if entity_metadata else None,
                 event_type=BUILDING_EVENT_TYPE,
