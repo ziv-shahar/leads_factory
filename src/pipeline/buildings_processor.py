@@ -224,12 +224,14 @@ def extract_companies_from_search(
 
         # Call LLM
         logger.info(f"Extracting companies from search results for {building_info.address}")
+        logger.warning(f"[DEBUG] Sending {len(search_results)} search results to GPT-4o for company extraction")
         response_text = llm_client.complete(
             system_prompt=COMPANY_SEARCH_EXTRACTION_SYSTEM_PROMPT,
             user_prompt=user_prompt,
             temperature=0.1,
             model=LLM_MODEL_EXPENSIVE
         ).strip()
+        logger.warning(f"[DEBUG] Received GPT-4o response ({len(response_text)} chars)")
 
         # Handle markdown code blocks
         if response_text.startswith("```"):
@@ -239,7 +241,16 @@ def extract_companies_from_search(
             response_text = response_text.strip()
 
         # Parse JSON - handle both array and object formats
-        parsed_data = json.loads(response_text)
+        try:
+            parsed_data = json.loads(response_text)
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON response: {e}")
+            logger.error(f"Raw response (first 1000 chars): {response_text[:1000]}")
+            return []
+
+        # Log what we received for debugging (use WARNING so it shows in console)
+        logger.warning(f"[DEBUG] GPT-4o response type: {type(parsed_data)}")
+        logger.warning(f"[DEBUG] GPT-4o response preview: {str(parsed_data)[:500]}")
 
         # Handle different response formats
         if isinstance(parsed_data, dict):
@@ -255,16 +266,36 @@ def extract_companies_from_search(
             companies_data = parsed_data
         else:
             logger.error(f"Unexpected response format: {type(parsed_data)}")
+            logger.error(f"Response was: {str(parsed_data)[:500]}")
             return []
+
+        # Log the companies data we're about to process
+        logger.warning(f"[DEBUG] Companies data is a {type(companies_data).__name__} with length: {len(companies_data) if isinstance(companies_data, list) else 'N/A'}")
 
         # Validate and convert to CompanyAtBuilding objects
         companies = []
-        for company_dict in companies_data:
+        for idx, company_dict in enumerate(companies_data):
             try:
                 # Ensure we have a dictionary
                 if not isinstance(company_dict, dict):
-                    logger.warning(f"Skipping non-dict company entry: {type(company_dict)}")
+                    logger.warning(
+                        f"Skipping non-dict company entry at index {idx}: "
+                        f"type={type(company_dict)}, value={str(company_dict)[:200]}"
+                    )
                     continue
+
+                # Check for required fields
+                if "company_name" not in company_dict:
+                    logger.warning(
+                        f"Skipping company entry at index {idx}: missing required field 'company_name'. "
+                        f"Data: {str(company_dict)[:200]}"
+                    )
+                    continue
+
+                if "extraction_confidence" not in company_dict:
+                    # Default to 0.5 if missing
+                    logger.debug(f"Setting default extraction_confidence for {company_dict.get('company_name')}")
+                    company_dict["extraction_confidence"] = 0.5
 
                 company = CompanyAtBuilding(**company_dict)
 
