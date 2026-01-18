@@ -44,9 +44,22 @@ def clear_tables():
 
             # Delete all records
             if before_count > 0:
-                # Supabase requires a filter, so we delete where id is not null
-                supabase.table(table_name).delete().neq('id', 'impossible_value_xyz_123').execute()
-                print(f"✅ {table_name}: Deleted {before_count} rows")
+                # Fetch all IDs first, then delete in batches
+                all_records = supabase.table(table_name).select("id").execute()
+
+                if all_records.data:
+                    # Delete each record by ID
+                    deleted = 0
+                    for record in all_records.data:
+                        try:
+                            supabase.table(table_name).delete().eq('id', record['id']).execute()
+                            deleted += 1
+                        except:
+                            pass  # Continue even if one fails
+
+                    print(f"✅ {table_name}: Deleted {deleted}/{before_count} rows")
+                else:
+                    print(f"ℹ️  {table_name}: No records to delete")
             else:
                 print(f"ℹ️  {table_name}: Already empty")
 
