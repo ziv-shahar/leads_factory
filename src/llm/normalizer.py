@@ -572,6 +572,43 @@ class LLMClient:
                 "events": []
             })
 
+        # Building extraction mock
+        if "building demolition" in system_prompt.lower() or "demolition permit" in user_prompt.lower():
+            return json.dumps({
+                "status": "success",
+                "building_info": {
+                    "address": "123 Main St, Miami, FL 33101",
+                    "building_name": "Commerce Tower",
+                    "demolition_date": "2024-06-15",
+                    "demolition_reason": "Structural issues and age",
+                    "is_commercial": True,
+                    "is_demolition_related": True,
+                    "extraction_confidence": 0.9
+                },
+                "reasoning": "Building demolition permit with clear commercial address"
+            })
+
+        # Company search extraction mock
+        if "extract companies located at" in user_prompt.lower() or "companies found at this address" in user_prompt.lower():
+            return json.dumps([
+                {
+                    "company_name": "Acme Corp",
+                    "suite_or_floor": "Suite 200",
+                    "website": "https://acmecorp.com",
+                    "domain": "acmecorp.com",
+                    "extraction_confidence": 0.85,
+                    "evidence_quote": "Acme Corp is located at Suite 200"
+                },
+                {
+                    "company_name": "TechStart Inc",
+                    "suite_or_floor": "Floor 3",
+                    "website": "https://techstart.io",
+                    "domain": "techstart.io",
+                    "extraction_confidence": 0.80,
+                    "evidence_quote": "TechStart Inc occupies the entire third floor"
+                }
+            ])
+
         # Legacy format for old prompts (shouldn't happen but keeping for safety)
         return json.dumps({
             "company_name_raw": "Unknown Company",

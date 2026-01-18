@@ -238,13 +238,34 @@ def extract_companies_from_search(
                 response_text = response_text[4:]
             response_text = response_text.strip()
 
-        # Parse JSON array
-        companies_data = json.loads(response_text)
+        # Parse JSON - handle both array and object formats
+        parsed_data = json.loads(response_text)
+
+        # Handle different response formats
+        if isinstance(parsed_data, dict):
+            # If response is wrapped in an object, extract the array
+            if "companies" in parsed_data:
+                companies_data = parsed_data["companies"]
+            elif "results" in parsed_data:
+                companies_data = parsed_data["results"]
+            else:
+                # Single company object
+                companies_data = [parsed_data]
+        elif isinstance(parsed_data, list):
+            companies_data = parsed_data
+        else:
+            logger.error(f"Unexpected response format: {type(parsed_data)}")
+            return []
 
         # Validate and convert to CompanyAtBuilding objects
         companies = []
         for company_dict in companies_data:
             try:
+                # Ensure we have a dictionary
+                if not isinstance(company_dict, dict):
+                    logger.warning(f"Skipping non-dict company entry: {type(company_dict)}")
+                    continue
+
                 company = CompanyAtBuilding(**company_dict)
 
                 # Filter by confidence threshold
@@ -257,6 +278,7 @@ def extract_companies_from_search(
                     )
             except Exception as e:
                 logger.warning(f"Failed to parse company object: {e}")
+                logger.debug(f"Company data was: {company_dict}")
                 continue
 
         logger.info(f"Extracted {len(companies)} companies at {building_info.address}")
