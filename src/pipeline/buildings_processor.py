@@ -59,15 +59,12 @@ def extract_building_info(
 
         # Call LLM
         logger.info(f"Extracting building info from {file_path}")
-        response = llm_client.messages.create(
-            model=LLM_MODEL_EXPENSIVE,
-            max_tokens=2000,
-            system=BUILDING_EXTRACTION_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_prompt}]
-        )
-
-        # Parse response
-        response_text = response.content[0].text.strip()
+        response_text = llm_client.complete(
+            system_prompt=BUILDING_EXTRACTION_SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            temperature=0.1,
+            model=LLM_MODEL_EXPENSIVE
+        ).strip()
 
         # Handle markdown code blocks if present
         if response_text.startswith("```"):
@@ -227,15 +224,12 @@ def extract_companies_from_search(
 
         # Call LLM
         logger.info(f"Extracting companies from search results for {building_info.address}")
-        response = llm_client.messages.create(
-            model=LLM_MODEL_EXPENSIVE,
-            max_tokens=3000,
-            system=COMPANY_SEARCH_EXTRACTION_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_prompt}]
-        )
-
-        # Parse response
-        response_text = response.content[0].text.strip()
+        response_text = llm_client.complete(
+            system_prompt=COMPANY_SEARCH_EXTRACTION_SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            temperature=0.1,
+            model=LLM_MODEL_EXPENSIVE
+        ).strip()
 
         # Handle markdown code blocks
         if response_text.startswith("```"):
