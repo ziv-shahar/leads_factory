@@ -133,10 +133,16 @@ def create_opportunity_event(
     Returns:
         NormalizedEvent or None if data is insufficient
     """
+    from src.utils.location_utils import normalize_state, normalize_city
+
     try:
         # Extract key data
         agency_name = extract_agency_name(opportunity)
         city, state = extract_location(opportunity)
+
+        # Normalize location
+        normalized_state = normalize_state(state) if state else None
+        normalized_city = normalize_city(city) if city else None
 
         title = opportunity.get("title", "")
         solicitation_number = opportunity.get("solicitation_number", "")
@@ -144,32 +150,28 @@ def create_opportunity_event(
         posted_date = opportunity.get("posted_date")
         response_deadline = opportunity.get("response_deadline")
 
-        # Create entity name with location
-        if state:
-            entity_name_raw = f"{agency_name} - {state}"
-            entity_name_canonical = f"{agency_name.upper().replace(' ', '')}-{state.upper().replace(' ', '')}"
-        else:
-            entity_name_raw = agency_name
-            entity_name_canonical = agency_name.upper().replace(" ", "")
+        # Entity name is just the agency name (no location suffix)
+        entity_name_raw = agency_name
+        entity_name_canonical = agency_name.upper().replace(" ", "")
 
-        # Build summary
+        # Build summary with normalized location
         location_str = ""
-        if city and state:
-            location_str = f" in {city}, {state}"
-        elif city:
-            location_str = f" in {city}"
-        elif state:
-            location_str = f" in {state}"
+        if normalized_city and normalized_state:
+            location_str = f" in {normalized_city}, {normalized_state}"
+        elif normalized_city:
+            location_str = f" in {normalized_city}"
+        elif normalized_state:
+            location_str = f" in {normalized_state}"
 
         summary = f"{agency_name} is seeking a new lease{location_str}: {title}"
 
-        # Build key facts
+        # Build key facts with normalized location
         key_facts_dict = {}
 
-        if city:
-            key_facts_dict["city"] = city
-        if state:
-            key_facts_dict["state"] = state
+        if normalized_city:
+            key_facts_dict["city"] = normalized_city
+        if normalized_state:
+            key_facts_dict["state"] = normalized_state
         if solicitation_number:
             key_facts_dict["solicitation_number"] = solicitation_number
         if response_deadline:
@@ -201,10 +203,10 @@ def create_opportunity_event(
 
         entity_metadata["jurisdiction"] = "federal"  # Assuming SAM.gov is federal
 
-        if city:
-            entity_metadata["opportunity_city"] = city
-        if state:
-            entity_metadata["opportunity_state"] = state
+        if normalized_city:
+            entity_metadata["opportunity_city"] = normalized_city
+        if normalized_state:
+            entity_metadata["opportunity_state"] = normalized_state
 
         # Create normalized event
         event = NormalizedEvent(

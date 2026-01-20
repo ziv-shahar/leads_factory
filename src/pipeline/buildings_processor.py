@@ -427,7 +427,8 @@ def create_company_events(
     Create NormalizedEvent for each company found at the building.
 
     Each company gets an event indicating they need to relocate due to demolition.
-    Entity names include location (state) to separate regional operations.
+    Entity names are just company names (no location suffix).
+    Location is stored in key_facts and used for LocationLead aggregation.
 
     Args:
         companies: List of companies at the building
@@ -437,20 +438,19 @@ def create_company_events(
     Returns:
         List of NormalizedEvent objects
     """
+    from src.utils.location_utils import normalize_state, normalize_city
+
     events = []
 
-    # Extract state from building address
-    state = extract_state_from_address(building_info.address, building_info.city)
+    # Normalize location data
+    normalized_state = normalize_state(building_info.state)
+    normalized_city = normalize_city(building_info.city)
 
     for company in companies:
         try:
-            # Create entity name with location
-            if state:
-                entity_name_raw = f"{company.company_name} - {state}"
-                entity_name_canonical = f"{company.company_name.upper().strip()}-{state}"
-            else:
-                entity_name_raw = company.company_name
-                entity_name_canonical = company.company_name.upper().strip()
+            # Entity name is just the company name (no location suffix)
+            entity_name_raw = company.company_name
+            entity_name_canonical = company.company_name.upper().strip()
 
             # Build summary
             summary_parts = [
@@ -461,7 +461,7 @@ def create_company_events(
 
             summary = " ".join(summary_parts)
 
-            # Build key facts - include location
+            # Build key facts - include normalized location
             key_facts_dict = {
                 "current_address": building_info.address,
             }
@@ -480,14 +480,11 @@ def create_company_events(
             if building_info.permit_id:
                 key_facts_dict["permit_id"] = building_info.permit_id
 
-            # Add location to key_facts
-            if building_info.city:
-                key_facts_dict["city"] = building_info.city
-            if building_info.state:
-                key_facts_dict["state"] = building_info.state
-            elif state:
-                # Use extracted state if not in building_info
-                key_facts_dict["state"] = state
+            # Add normalized location to key_facts
+            if normalized_city:
+                key_facts_dict["city"] = normalized_city
+            if normalized_state:
+                key_facts_dict["state"] = normalized_state
 
             # Create dynamic signal for office relocation urgency
             dynamic_signals = [
@@ -616,6 +613,8 @@ def process_single_permit(
     Returns:
         Dict with processing results
     """
+    from src.utils.location_utils import normalize_state
+
     logger.info(f"Processing permit {permit_index}/{total_permits}: {permit_data.get('id', 'unknown')}")
 
     # Extract key fields from permit
@@ -623,6 +622,7 @@ def process_single_permit(
     permit_id = permit_data.get("id")
     issue_date = permit_data.get("issue_date")
     description = permit_data.get("description", "").strip()
+    source = permit_data.get("source", "")
 
     if not address or len(address) < 5:
         logger.warning(f"Permit {permit_id} has invalid address: {address}")
@@ -633,12 +633,21 @@ def process_single_permit(
             "events": []
         }
 
-    # Create BuildingInfo from permit data
+    # Extract location from source field (e.g., "miami_dade" → Miami, FL)
+    city_from_source, state_from_source = extract_location_from_permit_source(source)
+
+    # Normalize state
+    normalized_state = normalize_state(state_from_source) if state_from_source else None
+
+    # Use city from permit data or fallback to source
+    city = permit_data.get("city") or city_from_source
+
+    # Create BuildingInfo from permit data with normalized location
     building_info = BuildingInfo(
         address=address,
         building_name=None,
-        city=permit_data.get("city"),
-        state=None,  # Would need to parse from address
+        city=city,
+        state=normalized_state,  # Normalized state code
         is_demolition_related=True,
         demolition_date=issue_date,
         demolition_reason=description,

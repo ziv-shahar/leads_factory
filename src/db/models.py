@@ -88,6 +88,7 @@ class Entity(Base):
     # Relationships
     events = relationship("Event", back_populates="entity", cascade="all, delete-orphan")
     lead = relationship("LeadCurrent", back_populates="entity", uselist=False, cascade="all, delete-orphan")
+    location_leads = relationship("LocationLead", back_populates="entity", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index('idx_entities_canonical_name', 'canonical_name'),
@@ -143,6 +144,42 @@ class LeadCurrent(Base):
     __table_args__ = (
         Index('idx_leads_current_score', 'score'),
         Index('idx_leads_current_status', 'status'),
+    )
+
+
+class LocationLead(Base):
+    """Location-based leads - track entity activities per state."""
+    __tablename__ = "location_leads"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    entity_id = Column(Integer, ForeignKey("entities.id", ondelete="CASCADE"), nullable=False)
+
+    # Normalized location (always 2-letter state code)
+    state = Column(String(2), nullable=False)  # "FL", "CA", "TX", etc.
+    city = Column(String(255), nullable=True)  # Optional - most significant city for this entity in the state
+
+    # Scoring
+    score = Column(Integer, nullable=False, default=0)
+    confidence_score = Column(Float, nullable=False, default=0.0)  # 0.0 - 1.0
+    status = Column(String(50), nullable=False, default="NEW")  # NEW, CONTACTED, QUALIFIED, CONVERTED, DISMISSED
+
+    # Metadata
+    event_count = Column(Integer, nullable=False, default=0)
+    reasons = Column(JSONB, nullable=False, default=dict)  # Evidence + reasoning by event type
+    last_event_date = Column(DateTime, nullable=True)  # Most recent event in this location
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    last_updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    entity = relationship("Entity", back_populates="location_leads")
+
+    # Constraints and Indexes
+    __table_args__ = (
+        UniqueConstraint('entity_id', 'state', name='uq_entity_state'),
+        Index('idx_location_leads_state', 'state'),
+        Index('idx_location_leads_score', 'score'),
+        Index('idx_location_leads_status', 'status'),
+        Index('idx_location_leads_entity_state', 'entity_id', 'state'),
     )
 
 
