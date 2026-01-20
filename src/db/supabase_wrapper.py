@@ -10,7 +10,7 @@ import uuid
 from supabase import create_client, Client
 
 from src.config import SUPABASE_URL, SUPABASE_KEY
-from src.db.models import Base, Entity, Event, RawEvent, LeadCurrent, LeadStateHistory
+from src.db.models import Base, Entity, Event, RawEvent, LeadCurrent, LeadStateHistory, LocationLead
 
 
 # Table name mapping
@@ -19,7 +19,8 @@ TABLE_MAP = {
     'Event': 'events',
     'RawEvent': 'raw_events',
     'LeadCurrent': 'leads_current',
-    'LeadStateHistory': 'lead_state_history'
+    'LeadStateHistory': 'lead_state_history',
+    'LocationLead': 'location_leads'
 }
 
 
@@ -212,7 +213,7 @@ class SupabaseSession:
             # Skip auto-increment IDs if they're None
             if key == 'id' and value is None:
                 # Check if this model uses auto-increment ID
-                if instance.__class__.__name__ in ['Entity', 'RawEvent', 'LeadCurrent', 'LeadStateHistory']:
+                if instance.__class__.__name__ in ['Entity', 'RawEvent', 'LeadCurrent', 'LeadStateHistory', 'LocationLead']:
                     continue
 
             # Convert datetime to ISO format
