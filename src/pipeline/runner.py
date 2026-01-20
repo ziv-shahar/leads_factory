@@ -23,6 +23,7 @@ from src.enrich.enricher import Enricher
 from src.resolve.resolver import EntityResolver
 from src.resolve.canonicalize import canonicalize_company_name
 from src.scoring.scorer import LeadScorer
+from src.scoring.location_lead_scorer import LocationLeadScorer
 
 # Log directory (created once)
 LOG_DIR = Path("logs")
@@ -101,6 +102,7 @@ class PipelineRunner:
         self.enricher = Enricher()
         self.resolver = EntityResolver()
         self.scorer = LeadScorer()
+        self.location_scorer = LocationLeadScorer()
         self.rate_limiter = RateLimiter(RATE_LIMIT_REQUESTS_PER_MINUTE)
 
     def run(self):
@@ -832,6 +834,42 @@ class PipelineRunner:
         else:
             _print("⊙ Enrichment disabled (set ENRICHMENT_ENABLED=true to enable)")
 
+        # Add location fallback: If event doesn't have location, use company HQ from enrichment
+        from src.utils.location_utils import normalize_state, normalize_city
+
+        # Get current location from event
+        event_city = normalized_event.key_facts.city if normalized_event.key_facts else None
+        event_state = normalized_event.key_facts.state if normalized_event.key_facts else None
+
+        # If no location in event and enrichment has HQ location, use it
+        if not event_state and enrichment and enrichment.metadata:
+            hq_state = enrichment.metadata.get("hq_state")
+            hq_city = enrichment.metadata.get("hq_city")
+
+            if hq_state:
+                # Normalize HQ location
+                normalized_hq_state = normalize_state(hq_state)
+                normalized_hq_city = normalize_city(hq_city) if hq_city else None
+
+                # Update event key_facts with HQ location
+                if not normalized_event.key_facts:
+                    from src.llm.schemas import KeyFact
+                    normalized_event.key_facts = KeyFact()
+
+                if not normalized_event.key_facts.state:
+                    normalized_event.key_facts.state = normalized_hq_state
+                if not normalized_event.key_facts.city and normalized_hq_city:
+                    normalized_event.key_facts.city = normalized_hq_city
+
+                _print(f"  → Using HQ location: {normalized_hq_city}, {normalized_hq_state}")
+
+        # Normalize location regardless of source (from event or HQ fallback)
+        if normalized_event.key_facts:
+            if normalized_event.key_facts.state:
+                normalized_event.key_facts.state = normalize_state(normalized_event.key_facts.state)
+            if normalized_event.key_facts.city:
+                normalized_event.key_facts.city = normalize_city(normalized_event.key_facts.city)
+
         # Resolve entity (dedupe)
         _print("→ Resolving entity...")
         entity = self.resolver.resolve_or_create_entity(
@@ -872,6 +910,23 @@ class PipelineRunner:
         _print(f"  → Scoring lead for {canonical_name}...")
         lead = self.scorer.score_and_materialize_lead(db, entity)
         db.flush()
+
+        # Score and materialize location-based lead (if event has location)
+        if normalized_event.key_facts and normalized_event.key_facts.state:
+            state = normalized_event.key_facts.state
+            city = normalized_event.key_facts.city if normalized_event.key_facts else None
+
+            _print(f"  → Scoring location lead for {canonical_name} in {state}...")
+            location_lead = self.location_scorer.score_and_materialize_location_lead(
+                db=db,
+                entity=entity,
+                state=state,
+                city=city
+            )
+            if location_lead:
+                db.flush()
+                _print(f"  ✓ Location lead updated: {state} (score={location_lead.score})")
+
         _print(f"  ✓ Event processed for {canonical_name}")
 
     def _parse_date(self, date_str: str) -> datetime:
