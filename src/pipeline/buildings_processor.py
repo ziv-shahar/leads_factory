@@ -325,6 +325,38 @@ def extract_companies_from_search(
         return []
 
 
+def extract_location_from_permit_source(source: str) -> tuple[Optional[str], Optional[str]]:
+    """
+    Extract city and state from permit source field.
+
+    Args:
+        source: Source identifier (e.g., "miami_dade", "broward", "palm_beach")
+
+    Returns:
+        Tuple of (city, state)
+    """
+    source_lower = source.lower()
+
+    # Known county/city mappings in Florida
+    florida_sources = {
+        'miami_dade': ('Miami', 'FL'),
+        'miami-dade': ('Miami', 'FL'),
+        'miamidade': ('Miami', 'FL'),
+        'broward': ('Fort Lauderdale', 'FL'),
+        'palm_beach': ('West Palm Beach', 'FL'),
+        'orange': ('Orlando', 'FL'),
+        'hillsborough': ('Tampa', 'FL'),
+        'pinellas': ('St. Petersburg', 'FL'),
+        'duval': ('Jacksonville', 'FL'),
+    }
+
+    for key, (city, state) in florida_sources.items():
+        if key in source_lower:
+            return city, state
+
+    return None, None
+
+
 def extract_state_from_address(address: str, city: Optional[str] = None) -> Optional[str]:
     """
     Extract state from address string.
@@ -338,13 +370,30 @@ def extract_state_from_address(address: str, city: Optional[str] = None) -> Opti
     """
     import re
 
-    # Common US state abbreviations pattern
-    state_pattern = r'\b([A-Z]{2})\b(?:\s+\d{5})?'  # Matches state code followed by optional ZIP
-    match = re.search(state_pattern, address)
-    if match:
-        return match.group(1)
+    # Exclude street direction abbreviations
+    excluded_codes = {'NW', 'NE', 'SW', 'SE', 'ST', 'RD', 'DR', 'AV', 'CT', 'LN', 'PL', 'WY'}
 
-    # Full state names
+    # Pattern: Look for 2-letter state code followed by optional ZIP
+    # Must not be preceded by numbers (to avoid "88 ST")
+    state_pattern = r'(?<!\d)\b([A-Z]{2})\b(?:\s+\d{5})?'
+    matches = re.findall(state_pattern, address)
+
+    # Filter out excluded codes and return first valid state
+    for match in matches:
+        if match not in excluded_codes:
+            # Verify it's a valid state code
+            valid_states = {
+                'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+                'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+                'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
+                'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+                'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY',
+                'DC', 'PR', 'VI', 'GU', 'AS', 'MP'
+            }
+            if match in valid_states:
+                return match
+
+    # Full state names as fallback
     states = {
         'alabama': 'AL', 'alaska': 'AK', 'arizona': 'AZ', 'arkansas': 'AR',
         'california': 'CA', 'colorado': 'CO', 'connecticut': 'CT', 'delaware': 'DE',
