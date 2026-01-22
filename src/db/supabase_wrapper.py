@@ -179,22 +179,61 @@ class SupabaseSession:
 
     def _insert_instance(self, instance: Any):
         """Insert a single instance into Supabase."""
+        from postgrest.exceptions import APIError
+
         table_name = TABLE_MAP[instance.__class__.__name__]
         data = self._model_to_dict(instance)
 
-        # Insert and get the result
-        result = self.supabase.table(table_name).insert(data).execute()
+        try:
+            # Insert and get the result
+            result = self.supabase.table(table_name).insert(data).execute()
 
-        if result.data and len(result.data) > 0:
-            # Update instance with returned ID
-            returned_row = result.data[0]
-            if 'id' in returned_row:
-                instance.id = returned_row['id']
+            if result.data and len(result.data) > 0:
+                # Update instance with returned ID
+                returned_row = result.data[0]
+                if 'id' in returned_row:
+                    instance.id = returned_row['id']
 
-            # Update any other auto-generated fields
-            for key, value in returned_row.items():
-                if not hasattr(instance, key) or getattr(instance, key) is None:
-                    setattr(instance, key, value)
+                # Update any other auto-generated fields
+                for key, value in returned_row.items():
+                    if not hasattr(instance, key) or getattr(instance, key) is None:
+                        setattr(instance, key, value)
+
+        except APIError as e:
+            # Handle duplicate key constraint violations for LeadCurrent and LocationLead
+            # This happens in parallel processing when two threads try to create the same lead
+            error_dict = e.args[0] if e.args else {}
+            error_code = error_dict.get('code')
+
+            if error_code == '23505':  # Duplicate key violation
+                # Only handle for LeadCurrent and LocationLead (they have unique constraints on entity_id)
+                if instance.__class__.__name__ == 'LeadCurrent':
+                    # Update existing LeadCurrent instead
+                    result = self.supabase.table(table_name).update(data).eq('entity_id', instance.entity_id).execute()
+                    if result.data and len(result.data) > 0:
+                        returned_row = result.data[0]
+                        if 'id' in returned_row:
+                            instance.id = returned_row['id']
+                        for key, value in returned_row.items():
+                            if not hasattr(instance, key) or getattr(instance, key) is None:
+                                setattr(instance, key, value)
+
+                elif instance.__class__.__name__ == 'LocationLead':
+                    # Update existing LocationLead instead
+                    result = self.supabase.table(table_name).update(data).eq('entity_id', instance.entity_id).eq('state', instance.state).execute()
+                    if result.data and len(result.data) > 0:
+                        returned_row = result.data[0]
+                        if 'id' in returned_row:
+                            instance.id = returned_row['id']
+                        for key, value in returned_row.items():
+                            if not hasattr(instance, key) or getattr(instance, key) is None:
+                                setattr(instance, key, value)
+                else:
+                    # For other tables, re-raise the error
+                    raise
+            else:
+                # For other errors, re-raise
+                raise
 
     def _model_to_dict(self, instance: Any) -> Dict:
         """Convert model instance to dictionary for Supabase."""
