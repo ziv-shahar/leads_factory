@@ -58,34 +58,61 @@ def list_files_in_storage(
     """
     try:
         # List files in the bucket
-        result = supabase.storage.from_(bucket_name).list(folder_path)
+        # Use empty string instead of None for root folder
+        path = folder_path if folder_path else ""
+        result = supabase.storage.from_(bucket_name).list(path)
+
+        # Check if result is None or empty
+        if result is None:
+            print(f"  ℹ️  Bucket '{bucket_name}' returned None - may be empty or inaccessible")
+            return []
+
+        if not isinstance(result, list):
+            print(f"  ⚠️  Unexpected result type: {type(result)}")
+            print(f"  Debug: {result}")
+            return []
 
         all_files = []
         for item in result:
-            # If it's a file (not a folder)
-            if item.get('metadata') or not item.get('id'):
+            if not isinstance(item, dict):
+                print(f"  ⚠️  Skipping non-dict item: {item}")
+                continue
+
+            item_name = item.get('name')
+            if not item_name:
+                continue
+
+            # Check if it's a file or folder
+            # Files have 'metadata' or explicit type, folders typically have 'id' but no metadata
+            is_folder = item.get('id') and not item.get('metadata')
+
+            if not is_folder:
+                # It's a file
                 # Build full path
                 if folder_path:
-                    full_path = f"{folder_path}/{item['name']}"
+                    full_path = f"{folder_path}/{item_name}"
                 else:
-                    full_path = item['name']
+                    full_path = item_name
 
                 all_files.append({
-                    'name': item['name'],
+                    'name': item_name,
                     'path': full_path,
-                    'size': item.get('metadata', {}).get('size', 0),
+                    'size': item.get('metadata', {}).get('size', 0) if item.get('metadata') else 0,
                     'created_at': item.get('created_at'),
                 })
             else:
                 # It's a folder - recursively list
-                subfolder = f"{folder_path}/{item['name']}" if folder_path else item['name']
+                subfolder = f"{folder_path}/{item_name}" if folder_path else item_name
+                print(f"  📁 Scanning folder: {subfolder}")
                 subfiles = list_files_in_storage(supabase, bucket_name, subfolder)
                 all_files.extend(subfiles)
 
         return all_files
 
     except Exception as e:
-        print(f"Error listing files: {e}")
+        print(f"  ✗ Error listing files in '{folder_path}': {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 
@@ -126,6 +153,39 @@ def download_file(
         return False
 
 
+def test_bucket_access(supabase: Client, bucket_name: str) -> bool:
+    """Test if we can access the bucket and list available buckets if not."""
+    try:
+        # Try to list all buckets to help debug
+        print(f"\n🔍 Testing bucket access...")
+        buckets = supabase.storage.list_buckets()
+
+        if buckets:
+            print(f"   Available buckets in this project:")
+            for bucket in buckets:
+                bucket_id = bucket.get('id') or bucket.get('name')
+                is_public = bucket.get('public', False)
+                print(f"     - {bucket_id} (public: {is_public})")
+
+            # Check if our target bucket exists
+            bucket_names = [b.get('id') or b.get('name') for b in buckets]
+            if bucket_name not in bucket_names:
+                print(f"\n   ⚠️  Bucket '{bucket_name}' not found!")
+                print(f"   💡 Did you mean one of these: {', '.join(bucket_names)}")
+                return False
+            else:
+                print(f"   ✓ Bucket '{bucket_name}' found")
+                return True
+        else:
+            print(f"   ⚠️  No buckets found - check permissions")
+            return False
+
+    except Exception as e:
+        print(f"   ⚠️  Cannot list buckets: {e}")
+        print(f"   Proceeding anyway - bucket might still be accessible")
+        return True  # Continue anyway
+
+
 def import_from_storage(
     source_url: str,
     source_key: str,
@@ -150,6 +210,9 @@ def import_from_storage(
     except Exception as e:
         print(f"✗ Error connecting to Supabase: {e}")
         return {'success': 0, 'failed': 0, 'skipped': 0}
+
+    # Test bucket access
+    test_bucket_access(supabase, bucket_name)
 
     # List all files
     print(f"\n📂 Listing files in storage...")
