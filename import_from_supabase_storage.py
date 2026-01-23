@@ -39,8 +39,9 @@ SOURCE_FOLDER_PATH = os.getenv("SOURCE_FOLDER_PATH", "")  # e.g., "raw_data" or 
 # SOURCE_BUCKET_NAME = "your-bucket-name"
 # SOURCE_FOLDER_PATH = "raw_data"  # or "" for root
 
-# Local destination
-LOCAL_RAW_DATA_BUCKET = Path("/home/user/leads_factory/raw_data_bucket")
+# Local destination (relative to script location for cross-platform compatibility)
+SCRIPT_DIR = Path(__file__).parent
+LOCAL_RAW_DATA_BUCKET = SCRIPT_DIR / "raw_data_bucket"
 
 # ============================================================================
 # Helper Functions
@@ -83,10 +84,17 @@ def list_files_in_storage(
                 continue
 
             # Check if it's a file or folder
-            # Files have 'metadata' or explicit type, folders typically have 'id' but no metadata
-            is_folder = item.get('id') and not item.get('metadata')
+            # In Supabase Storage:
+            # - Files have 'metadata' with 'size', 'mimetype', etc.
+            # - Folders have 'id' but no 'metadata', or metadata is null/empty
+            metadata = item.get('metadata')
+            has_metadata = metadata is not None and (isinstance(metadata, dict) and len(metadata) > 0)
 
-            if not is_folder:
+            # If it has meaningful metadata, it's a file
+            # If no metadata or empty metadata, it's likely a folder
+            is_file = has_metadata
+
+            if is_file:
                 # It's a file
                 # Build full path
                 if folder_path:
@@ -97,7 +105,7 @@ def list_files_in_storage(
                 all_files.append({
                     'name': item_name,
                     'path': full_path,
-                    'size': item.get('metadata', {}).get('size', 0) if item.get('metadata') else 0,
+                    'size': metadata.get('size', 0),
                     'created_at': item.get('created_at'),
                 })
             else:
@@ -162,13 +170,21 @@ def test_bucket_access(supabase: Client, bucket_name: str) -> bool:
 
         if buckets:
             print(f"   Available buckets in this project:")
+            bucket_names = []
             for bucket in buckets:
-                bucket_id = bucket.get('id') or bucket.get('name')
-                is_public = bucket.get('public', False)
-                print(f"     - {bucket_id} (public: {is_public})")
+                # Buckets can be dict or object, handle both
+                if isinstance(bucket, dict):
+                    bucket_id = bucket.get('id') or bucket.get('name')
+                    is_public = bucket.get('public', False)
+                else:
+                    bucket_id = getattr(bucket, 'id', None) or getattr(bucket, 'name', None)
+                    is_public = getattr(bucket, 'public', False)
+
+                if bucket_id:
+                    print(f"     - {bucket_id} (public: {is_public})")
+                    bucket_names.append(bucket_id)
 
             # Check if our target bucket exists
-            bucket_names = [b.get('id') or b.get('name') for b in buckets]
             if bucket_name not in bucket_names:
                 print(f"\n   ⚠️  Bucket '{bucket_name}' not found!")
                 print(f"   💡 Did you mean one of these: {', '.join(bucket_names)}")
