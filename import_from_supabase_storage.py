@@ -2,14 +2,15 @@
 Import files from Supabase Storage to local raw_data_bucket for processing.
 
 Usage:
-    python import_from_supabase_storage.py
+    python import_from_supabase_storage.py              # Import today's data
+    python import_from_supabase_storage.py 2026-01-20   # Import specific date
 
 Configuration:
     Set these environment variables or edit them below:
     - SOURCE_SUPABASE_URL: URL of the Supabase project with storage
     - SOURCE_SUPABASE_KEY: Service role key or anon key
     - SOURCE_BUCKET_NAME: Name of the storage bucket
-    - SOURCE_FOLDER_PATH: Folder path in the bucket (e.g., "raw_data" or "leads/2024")
+    - SOURCE_FOLDER_PATH: (Optional) Override folder path, defaults to today's date
 """
 
 import os
@@ -17,6 +18,7 @@ from pathlib import Path
 from supabase import create_client, Client
 from typing import List, Optional
 import sys
+from datetime import datetime
 from dotenv import load_dotenv
 
 # Load .env.storage if it exists
@@ -31,13 +33,24 @@ if Path(".env.storage").exists():
 SOURCE_SUPABASE_URL = os.getenv("SOURCE_SUPABASE_URL", "")
 SOURCE_SUPABASE_KEY = os.getenv("SOURCE_SUPABASE_KEY", "")
 SOURCE_BUCKET_NAME = os.getenv("SOURCE_BUCKET_NAME", "")
-SOURCE_FOLDER_PATH = os.getenv("SOURCE_FOLDER_PATH", "")  # e.g., "raw_data" or "" for root
 
 # Option 2: Or set them directly here (less secure for git repos)
 # SOURCE_SUPABASE_URL = "https://xxxxx.supabase.co"
 # SOURCE_SUPABASE_KEY = "your-service-role-key-here"
 # SOURCE_BUCKET_NAME = "your-bucket-name"
-# SOURCE_FOLDER_PATH = "raw_data"  # or "" for root
+
+# Automatically use today's date as folder path (YYYY-MM-DD format)
+# Can be overridden by environment variable or command line argument
+def get_target_date() -> str:
+    """Get the target date from command line args or use today."""
+    if len(sys.argv) > 1:
+        # Date provided as command line argument
+        return sys.argv[1]
+    else:
+        # Use today's date
+        return datetime.now().strftime("%Y-%m-%d")
+
+SOURCE_FOLDER_PATH = os.getenv("SOURCE_FOLDER_PATH", get_target_date())
 
 # Local destination (relative to script location for cross-platform compatibility)
 SCRIPT_DIR = Path(__file__).parent
@@ -250,15 +263,9 @@ def import_from_storage(
     for file_info in files:
         file_path = file_info['path']
 
-        # Determine local path (preserve directory structure)
-        # Remove the source folder prefix if it exists
-        relative_path = file_path
-        if folder_path and file_path.startswith(folder_path + "/"):
-            relative_path = file_path[len(folder_path) + 1:]
-        elif folder_path and file_path.startswith(folder_path):
-            relative_path = file_path[len(folder_path):]
-
-        local_file_path = local_destination / relative_path
+        # Determine local path - PRESERVE the full path including date folder
+        # e.g., "2026-01-23/finance_news/file.json" -> "raw_data_bucket/2026-01-23/finance_news/file.json"
+        local_file_path = local_destination / file_path
 
         # Check if file already exists
         if local_file_path.exists():
@@ -287,6 +294,12 @@ def main():
     print("=" * 80)
     print("Import Files from Supabase Storage")
     print("=" * 80)
+
+    # Show which date we're importing
+    if len(sys.argv) > 1:
+        print(f"\n📅 Importing data for: {SOURCE_FOLDER_PATH} (specified)")
+    else:
+        print(f"\n📅 Importing data for: {SOURCE_FOLDER_PATH} (today's date)")
 
     # Validate configuration
     if not SOURCE_SUPABASE_URL or not SOURCE_SUPABASE_KEY:
@@ -325,10 +338,14 @@ def main():
     print("=" * 80)
 
     if results['success'] > 0:
-        print(f"\n✓ Files saved to: {LOCAL_RAW_DATA_BUCKET}")
+        print(f"\n✓ Files saved to: {LOCAL_RAW_DATA_BUCKET / SOURCE_FOLDER_PATH}")
+        print(f"   (Full path: {LOCAL_RAW_DATA_BUCKET})")
         print("\nNext steps:")
         print("  1. Run the pipeline: python3 main.py run")
         print("  2. View results in Supabase database")
+    else:
+        print(f"\n⚠️  No files were downloaded.")
+        print(f"   Check if folder '{SOURCE_FOLDER_PATH}' exists in bucket '{SOURCE_BUCKET_NAME}'")
 
 
 if __name__ == "__main__":
