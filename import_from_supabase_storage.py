@@ -50,7 +50,7 @@ def get_target_date() -> str:
         # Use today's date
         return datetime.now().strftime("%Y-%m-%d")
 
-SOURCE_FOLDER_PATH = os.getenv("SOURCE_FOLDER_PATH", get_target_date())
+SOURCE_FOLDER_PATH = os.getenv("SOURCE_FOLDER_PATH") or get_target_date()
 
 # Local destination (relative to script location for cross-platform compatibility)
 SCRIPT_DIR = Path(__file__).parent
