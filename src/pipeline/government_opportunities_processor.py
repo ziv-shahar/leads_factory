@@ -139,7 +139,12 @@ def fetch_agency_from_sam_url(source_url: str) -> Optional[str]:
 
 def extract_agency_name(opportunity: Dict[str, Any]) -> str:
     """
-    Extract agency name from opportunity data using SAM.gov URL.
+    Extract agency name from opportunity data.
+
+    Tries multiple sources in order:
+    1. Top-level agency field (if present and not empty)
+    2. raw_api_response.fullParentPathName (if available)
+    3. Web enrichment from source_url using Tavily (only if agency is missing)
 
     Args:
         opportunity: Opportunity dictionary
@@ -147,14 +152,16 @@ def extract_agency_name(opportunity: Dict[str, Any]) -> str:
     Returns:
         Agency name
     """
-    # PRIMARY METHOD: Fetch from source_url using Tavily
-    source_url = opportunity.get("source_url")
-    if source_url:
-        agency = fetch_agency_from_sam_url(source_url)
-        if agency:
-            return agency
+    # FIRST: Check agency field
+    agency = opportunity.get("agency", "").strip()
+    if agency:
+        # Clean up common suffixes
+        agency = agency.replace(", DEPARTMENT OF", "")
+        agency = agency.replace(", DEPT OF", "")
+        agency = agency.replace("DEPT OF ", "")
+        return agency
 
-    # FALLBACK 1: Try to get from fullParentPathName in raw_api_response
+    # SECOND: Try to get from fullParentPathName in raw_api_response
     raw_api = opportunity.get("raw_api_response", {})
     full_path = raw_api.get("fullParentPathName", "")
 
@@ -169,11 +176,15 @@ def extract_agency_name(opportunity: Dict[str, Any]) -> str:
             agency_name = agency_name.replace(", DEPT OF", "")
             return agency_name
 
-    # FALLBACK 2: agency field
-    if opportunity.get("agency"):
-        return opportunity["agency"]
+    # THIRD: Last resort - fetch from source_url using Tavily (ONLY if agency is missing)
+    source_url = opportunity.get("source_url")
+    if source_url:
+        logger.info(f"Agency field empty, fetching from URL: {source_url}")
+        fetched_agency = fetch_agency_from_sam_url(source_url)
+        if fetched_agency:
+            return fetched_agency
 
-    # FALLBACK 3: extract from title
+    # Extract from title as final fallback
     title = opportunity.get("title", "")
     if "VA" in title or "Veterans" in title:
         return "Veterans Affairs"
@@ -242,7 +253,12 @@ def fetch_location_from_sam_url(source_url: str) -> tuple[Optional[str], Optiona
 
 def extract_location(opportunity: Dict[str, Any]) -> tuple[Optional[str], Optional[str]]:
     """
-    Extract city and state from opportunity data using SAM.gov URL.
+    Extract city and state from opportunity data.
+
+    Tries multiple sources in order:
+    1. Top-level city/state fields (if present)
+    2. raw_api_response.placeOfPerformance (if available)
+    3. Web enrichment from source_url using Tavily (only if missing)
 
     Args:
         opportunity: Opportunity dictionary
@@ -250,22 +266,19 @@ def extract_location(opportunity: Dict[str, Any]) -> tuple[Optional[str], Option
     Returns:
         Tuple of (city, state)
     """
-    # PRIMARY METHOD: Fetch from source_url using Tavily
-    source_url = opportunity.get("source_url")
-    if source_url:
-        city, state = fetch_location_from_sam_url(source_url)
-        if city or state:
-            return city, state
+    # FIRST: Check top-level city/state fields
+    city = opportunity.get("city")
+    state = opportunity.get("state")
 
-    # FALLBACK: Try placeOfPerformance in raw_api_response
+    if city or state:
+        return city, state
+
+    # SECOND: Try placeOfPerformance in raw_api_response
     raw_api = opportunity.get("raw_api_response", {})
     place_of_performance = raw_api.get("placeOfPerformance", {})
 
     city_data = place_of_performance.get("city", {})
     state_data = place_of_performance.get("state", {})
-
-    city = None
-    state = None
 
     if isinstance(city_data, dict):
         city = city_data.get("name")
@@ -277,7 +290,18 @@ def extract_location(opportunity: Dict[str, Any]) -> tuple[Optional[str], Option
     elif isinstance(state_data, str):
         state = state_data
 
-    return city, state
+    if city or state:
+        return city, state
+
+    # THIRD: Last resort - fetch from source_url using Tavily (ONLY if location is missing)
+    source_url = opportunity.get("source_url")
+    if source_url:
+        logger.info(f"Location fields empty, fetching from URL: {source_url}")
+        city, state = fetch_location_from_sam_url(source_url)
+        if city or state:
+            return city, state
+
+    return None, None
 
 
 def create_opportunity_event(
