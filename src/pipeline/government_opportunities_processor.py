@@ -50,9 +50,96 @@ def parse_opportunities_from_json(content: str) -> List[Dict[str, Any]]:
         return []
 
 
+def fetch_agency_from_sam_url(source_url: str) -> Optional[str]:
+    """
+    Fetch agency information from SAM.gov URL using Tavily.
+
+    Args:
+        source_url: SAM.gov opportunity URL
+
+    Returns:
+        Agency name or None if not found
+    """
+    try:
+        from tavily import TavilyClient
+        import os
+
+        tavily_key = os.getenv("TAVILY_API_KEY")
+        if not tavily_key:
+            logger.warning("TAVILY_API_KEY not set, cannot fetch agency from URL")
+            return None
+
+        client = TavilyClient(api_key=tavily_key)
+
+        # Fetch the page content directly
+        logger.info(f"Fetching agency info from: {source_url}")
+        results = client.search(source_url, max_results=1, include_raw_content=True)
+
+        if not results.get("results"):
+            logger.warning(f"No results from Tavily for: {source_url}")
+            return None
+
+        # Get the content from the result
+        result = results["results"][0]
+        content = result.get("raw_content", "") or result.get("content", "")
+
+        if not content:
+            logger.warning(f"No content returned from Tavily for: {source_url}")
+            return None
+
+        # Extract agency from content
+        # Look for "Department/Agency" field or similar patterns in SAM.gov pages
+        import re
+
+        # Common patterns in SAM.gov pages
+        patterns = [
+            r"Department/Ind\. Agency:\s*([^\n<]+)",
+            r"Department:\s*([^\n<]+)",
+            r"Agency:\s*([^\n<]+)",
+            r"fullParentPathName[\"']:\s*[\"']([^\"']+)[\"']",
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, content, re.IGNORECASE)
+            if match:
+                agency = match.group(1).strip()
+                # Clean up
+                agency = agency.replace(", DEPARTMENT OF", "")
+                agency = agency.replace(", DEPT OF", "")
+                # If it has dots, take the first part
+                if "." in agency:
+                    agency = agency.split(".")[0].strip()
+                logger.info(f"Extracted agency from SAM.gov: {agency}")
+                return agency
+
+        # If patterns don't match, look for known agencies in content
+        content_upper = content.upper()
+        known_agencies = {
+            "VETERANS AFFAIRS": "Veterans Affairs",
+            "GENERAL SERVICES ADMINISTRATION": "General Services Administration",
+            "DEPARTMENT OF DEFENSE": "Department of Defense",
+            "DEPARTMENT OF STATE": "Department of State",
+            "DEPARTMENT OF ENERGY": "Department of Energy",
+            "NASA": "NASA",
+            "EPA": "Environmental Protection Agency",
+        }
+
+        for key, value in known_agencies.items():
+            if key in content_upper:
+                logger.info(f"Found agency in content: {value}")
+                return value
+
+        logger.warning(f"Could not extract agency from content for: {source_url}")
+        return None
+
+    except Exception as e:
+        logger.error(f"Error fetching agency from URL: {e}", exc_info=True)
+        return None
+
+
 def extract_agency_name(opportunity: Dict[str, Any]) -> str:
     """
-    Extract agency name from opportunity data.
+    Extract agency name from opportunity data using SAM.gov URL.
 
     Args:
         opportunity: Opportunity dictionary
@@ -60,7 +147,14 @@ def extract_agency_name(opportunity: Dict[str, Any]) -> str:
     Returns:
         Agency name
     """
-    # Try to get from fullParentPathName in raw_api_response
+    # PRIMARY METHOD: Fetch from source_url using Tavily
+    source_url = opportunity.get("source_url")
+    if source_url:
+        agency = fetch_agency_from_sam_url(source_url)
+        if agency:
+            return agency
+
+    # FALLBACK 1: Try to get from fullParentPathName in raw_api_response
     raw_api = opportunity.get("raw_api_response", {})
     full_path = raw_api.get("fullParentPathName", "")
 
@@ -75,11 +169,11 @@ def extract_agency_name(opportunity: Dict[str, Any]) -> str:
             agency_name = agency_name.replace(", DEPT OF", "")
             return agency_name
 
-    # Fallback to agency field
+    # FALLBACK 2: agency field
     if opportunity.get("agency"):
         return opportunity["agency"]
 
-    # Last resort - extract from title
+    # FALLBACK 3: extract from title
     title = opportunity.get("title", "")
     if "VA" in title or "Veterans" in title:
         return "Veterans Affairs"
@@ -87,9 +181,68 @@ def extract_agency_name(opportunity: Dict[str, Any]) -> str:
     return "Unknown Agency"
 
 
+def fetch_location_from_sam_url(source_url: str) -> tuple[Optional[str], Optional[str]]:
+    """
+    Fetch location information from SAM.gov URL using Tavily.
+
+    Args:
+        source_url: SAM.gov opportunity URL
+
+    Returns:
+        Tuple of (city, state)
+    """
+    try:
+        from tavily import TavilyClient
+        import os
+
+        tavily_key = os.getenv("TAVILY_API_KEY")
+        if not tavily_key:
+            return None, None
+
+        client = TavilyClient(api_key=tavily_key)
+
+        # Fetch the page content directly
+        logger.info(f"Fetching location info from: {source_url}")
+        results = client.search(source_url, max_results=1, include_raw_content=True)
+
+        if not results.get("results"):
+            return None, None
+
+        # Get the content from the result
+        result = results["results"][0]
+        content = result.get("raw_content", "") or result.get("content", "")
+
+        if not content:
+            return None, None
+
+        # Extract location from content
+        import re
+
+        # Look for place of performance patterns in SAM.gov pages
+        patterns = [
+            r"Place of Performance.*?City:\s*([^\n<]+).*?State:\s*([^\n<]+)",
+            r"Location:\s*([^,]+),\s*([A-Z]{2})",
+            r"([A-Za-z\s]+),\s*([A-Z]{2})\s+\d{5}",  # City, ST 12345 format
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, content, re.IGNORECASE | re.DOTALL)
+            if match:
+                city = match.group(1).strip()
+                state = match.group(2).strip()
+                logger.info(f"Extracted location from SAM.gov: {city}, {state}")
+                return city, state
+
+        return None, None
+
+    except Exception as e:
+        logger.error(f"Error fetching location from URL: {e}", exc_info=True)
+        return None, None
+
+
 def extract_location(opportunity: Dict[str, Any]) -> tuple[Optional[str], Optional[str]]:
     """
-    Extract city and state from opportunity placeOfPerformance.
+    Extract city and state from opportunity data using SAM.gov URL.
 
     Args:
         opportunity: Opportunity dictionary
@@ -97,6 +250,14 @@ def extract_location(opportunity: Dict[str, Any]) -> tuple[Optional[str], Option
     Returns:
         Tuple of (city, state)
     """
+    # PRIMARY METHOD: Fetch from source_url using Tavily
+    source_url = opportunity.get("source_url")
+    if source_url:
+        city, state = fetch_location_from_sam_url(source_url)
+        if city or state:
+            return city, state
+
+    # FALLBACK: Try placeOfPerformance in raw_api_response
     raw_api = opportunity.get("raw_api_response", {})
     place_of_performance = raw_api.get("placeOfPerformance", {})
 
