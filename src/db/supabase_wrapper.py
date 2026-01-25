@@ -202,8 +202,24 @@ class SupabaseSession:
         except APIError as e:
             # Handle duplicate key constraint violations for LeadCurrent and LocationLead
             # This happens in parallel processing when two threads try to create the same lead
-            error_dict = e.args[0] if e.args else {}
-            error_code = error_dict.get('code')
+
+            # APIError.args[0] can be either a dict or a string, handle both
+            error_dict = {}
+            if e.args:
+                if isinstance(e.args[0], dict):
+                    error_dict = e.args[0]
+                elif isinstance(e.args[0], str):
+                    # Sometimes it's a string, try to parse it
+                    try:
+                        import json
+                        error_dict = json.loads(e.args[0])
+                    except:
+                        # If parsing fails, check the string content
+                        error_str = str(e)
+                        if '23505' in error_str:
+                            error_dict = {'code': '23505'}
+
+            error_code = error_dict.get('code') if isinstance(error_dict, dict) else None
 
             if error_code == '23505':  # Duplicate key violation
                 # Only handle for LeadCurrent and LocationLead (they have unique constraints on entity_id)
@@ -228,6 +244,22 @@ class SupabaseSession:
                         for key, value in returned_row.items():
                             if not hasattr(instance, key) or getattr(instance, key) is None:
                                 setattr(instance, key, value)
+
+                elif instance.__class__.__name__ == 'Entity':
+                    # Handle duplicate domain constraint for Entity
+                    # Query existing entity by domain and use it instead
+                    if hasattr(instance, 'domain') and instance.domain:
+                        existing = self.supabase.table(table_name).select("*").eq('domain', instance.domain).limit(1).execute()
+                        if existing.data and len(existing.data) > 0:
+                            # Use the existing entity's data
+                            for key, value in existing.data[0].items():
+                                if hasattr(instance, key):
+                                    setattr(instance, key, value)
+                        else:
+                            # Shouldn't happen, but re-raise if we can't find it
+                            raise
+                    else:
+                        raise
                 else:
                     # For other tables, re-raise the error
                     raise
