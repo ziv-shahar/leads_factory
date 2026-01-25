@@ -345,28 +345,29 @@ class RawFileReader:
 
     def list_files_with_merge(self, pattern: str = "*") -> List[Dict[str, any]]:
         """
-        List files with merge support - non-recursive, explicit discovery.
+        List files with merge support - recursive discovery.
 
-        Discovery rules (processes only immediate children of RAW_DATA_BUCKET):
-        1. Files at root level: Process individually
+        Discovery rules:
+        1. Files at any level: Process individually
         2. Directory with merge.txt: Process as merged entry (combines files per merge.txt patterns)
-        3. Directory with files (no merge.txt): Process each file individually
-        4. Directory with only subdirectories (no direct files): Ignore
-        5. Does NOT recurse into nested directories automatically
+        3. Recurses into all subdirectories to find files
 
         Examples:
           raw_data_bucket/
-            article.html              → Processed as file
+            article.html                    → Processed as file
             news/
-              story1.html             → Processed as file
-              story2.html             → Processed as file
+              story1.html                   → Processed as file
+              story2.html                   → Processed as file
+            2026-01-24/
+              172501/
+                finance_news/
+                  category1/
+                    file1.json              → Processed as file
+                  file2.json                → Processed as file
             contracts/
-              merge.txt               → Directory processed as merged entry
+              merge.txt                     → Directory processed as merged entry
               doc1.pdf
               doc2.docx
-            reports/
-              2024/
-                data.xlsx             → Ignored (nested)
 
         Returns a list of file entries. Each entry is either:
         - A single file: {"type": "file", "path": "...", "files": ["..."]}
@@ -382,11 +383,21 @@ class RawFileReader:
             return []
 
         entries = []
+        self._discover_files_recursive(self.bucket_path, entries)
+        return entries
 
-        # Iterate through immediate children of bucket_path
-        for item in sorted(self.bucket_path.iterdir()):
+    def _discover_files_recursive(self, directory: Path, entries: List[Dict[str, any]]):
+        """
+        Recursively discover files in a directory.
+
+        Args:
+            directory: Directory to search
+            entries: List to append discovered entries to
+        """
+        # Iterate through immediate children
+        for item in sorted(directory.iterdir()):
             if item.is_file():
-                # Individual file at root level - add it
+                # Individual file - add it
                 entries.append({
                     "type": "file",
                     "path": str(item),
@@ -411,22 +422,8 @@ class RawFileReader:
                             "data_source_type": self.detect_data_source_type(str(item))
                         })
                 else:
-                    # Directory without merge.txt - check if it has files directly in it
-                    has_files = any(f.is_file() for f in item.iterdir())
-
-                    if has_files:
-                        # Process each file in this directory individually
-                        for file_path in sorted(item.iterdir()):
-                            if file_path.is_file():
-                                entries.append({
-                                    "type": "file",
-                                    "path": str(file_path),
-                                    "files": [str(file_path)],
-                                    "data_source_type": self.detect_data_source_type(str(file_path))
-                                })
-                    # Else: directory with only subdirectories - ignore it
-
-        return entries
+                    # No merge.txt - recurse into this directory
+                    self._discover_files_recursive(item, entries)
 
     def get_relative_path(self, file_path: str) -> str:
         """Get path relative to bucket root."""
