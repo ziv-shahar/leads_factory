@@ -110,26 +110,29 @@ export interface LocationLead {
   last_updated_at: string
 }
 
+// Reason value can be either a simple number or an object with count and score
+export type ReasonValue = number | { count: number; score: number }
+
 export interface LeadReasons {
-  // Event type scores
-  funding_round?: number
-  hiring_surge?: number
-  partnership?: number
-  expansion?: number
-  product_launch?: number
-  acquisition?: number
-  leadership_change?: number
-  award_recognition?: number
-  government_contract?: number
-  demolition?: number
-  permit?: number
+  // Event type scores (can be number or {count, score} object)
+  funding_round?: ReasonValue
+  hiring_surge?: ReasonValue
+  partnership?: ReasonValue
+  expansion?: ReasonValue
+  product_launch?: ReasonValue
+  acquisition?: ReasonValue
+  leadership_change?: ReasonValue
+  award_recognition?: ReasonValue
+  government_contract?: ReasonValue
+  demolition?: ReasonValue
+  permit?: ReasonValue
 
   // Evidence
   evidence_event_ids?: string[]
   total_events?: number
 
   // Additional dynamic reasons
-  [key: string]: any
+  [key: string]: ReasonValue | string[] | number | undefined
 }
 
 export type LeadStatus = 'NEW' | 'ACTIVE' | 'STALE' | 'DISMISSED' | 'CONTACTED' | 'QUALIFIED' | 'CONVERTED'

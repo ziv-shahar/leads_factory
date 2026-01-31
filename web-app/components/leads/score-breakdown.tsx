@@ -12,13 +12,22 @@ interface ScoreBreakdownProps {
 
 export function ScoreBreakdown({ reasons, totalScore, className }: ScoreBreakdownProps) {
   // Extract event types and their scores (exclude evidence_event_ids and total_events)
+  // Handle both number values and {count, score} objects
   const eventScores = Object.entries(reasons)
     .filter(([key]) => key !== 'evidence_event_ids' && key !== 'total_events')
-    .map(([eventType, score]) => ({
-      eventType,
-      score: score as number,
-      percentage: totalScore > 0 ? ((score as number) / totalScore) * 100 : 0,
-    }))
+    .map(([eventType, value]) => {
+      // Handle both number and object formats
+      const score = typeof value === 'object' && value !== null && 'score' in value
+        ? (value as any).score
+        : typeof value === 'number'
+        ? value
+        : 0
+      return {
+        eventType,
+        score,
+        percentage: totalScore > 0 ? (score / totalScore) * 100 : 0,
+      }
+    })
     .sort((a, b) => b.score - a.score)
 
   if (eventScores.length === 0) {

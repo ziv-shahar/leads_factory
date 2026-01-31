@@ -15,9 +15,19 @@ export function LeadCard({ lead, className }: LeadCardProps) {
   const { entity } = lead
 
   // Get top 3 event types from reasons (exclude evidence_event_ids and total_events)
+  // Handle both number values and {count, score} objects
   const topReasons = Object.entries(lead.reasons)
     .filter(([key]) => key !== 'evidence_event_ids' && key !== 'total_events')
-    .sort(([, a], [, b]) => (b as number) - (a as number))
+    .map(([key, value]) => {
+      // Handle both number and object formats
+      const score = typeof value === 'object' && value !== null && 'score' in value
+        ? (value as any).score
+        : typeof value === 'number'
+        ? value
+        : 0
+      return [key, score] as [string, number]
+    })
+    .sort(([, a], [, b]) => b - a)
     .slice(0, 3)
 
   // Determine score color
