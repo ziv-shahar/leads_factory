@@ -1,0 +1,279 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { StateFilter } from '@/components/leads/state-filter'
+import { LeadCard } from '@/components/leads/lead-card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Search, Download, Filter, Loader2 } from 'lucide-react'
+import type { LeadWithEntity, LeadStatus } from '@/types/database'
+
+export default function LeadsPage() {
+  const [leads, setLeads] = useState<LeadWithEntity[]>([])
+  const [loading, setLoading] = useState(true)
+  const [total, setTotal] = useState(0)
+
+  // Filters
+  const [selectedStates, setSelectedStates] = useState<string[]>([])
+  const [selectedStatus, setSelectedStatus] = useState<LeadStatus[]>(['NEW', 'ACTIVE'])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [minScore, setMinScore] = useState(0)
+  const [maxScore, setMaxScore] = useState(999)
+
+  // Pagination
+  const [page, setPage] = useState(1)
+  const [limit] = useState(24)
+
+  // Fetch leads
+  useEffect(() => {
+    fetchLeads()
+  }, [selectedStates, selectedStatus, searchQuery, minScore, maxScore, page])
+
+  async function fetchLeads() {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+
+      if (selectedStates.length > 0) {
+        params.set('states', selectedStates.join(','))
+      }
+      if (selectedStatus.length > 0) {
+        params.set('status', selectedStatus.join(','))
+      }
+      if (searchQuery) {
+        params.set('search', searchQuery)
+      }
+      params.set('minScore', minScore.toString())
+      params.set('maxScore', maxScore.toString())
+      params.set('limit', limit.toString())
+      params.set('offset', ((page - 1) * limit).toString())
+
+      const response = await fetch(`/api/location-leads?${params}`)
+      const data = await response.json()
+
+      if (response.ok) {
+        setLeads(data.leads)
+        setTotal(data.total)
+      } else {
+        console.error('Error fetching leads:', data.error)
+      }
+    } catch (error) {
+      console.error('Error fetching leads:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleExport = async () => {
+    // TODO: Implement export functionality
+    console.log('Export leads')
+  }
+
+  const totalPages = Math.ceil(total / limit)
+
+  return (
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            Leads
+          </h1>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            {total} leads available • Showing {leads.length} on this page
+          </p>
+        </div>
+
+        <Button onClick={handleExport} variant="outline" className="gap-2">
+          <Download className="h-4 w-4" />
+          Export
+        </Button>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              type="text"
+              placeholder="Search companies..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+
+          {/* State Filter */}
+          <StateFilter
+            selected={selectedStates}
+            onChange={setSelectedStates}
+          />
+
+          {/* Status Filter */}
+          <div>
+            <select
+              value={selectedStatus.join(',')}
+              onChange={e => {
+                const values = e.target.value.split(',').filter(Boolean) as LeadStatus[]
+                setSelectedStatus(values.length > 0 ? values : ['NEW', 'ACTIVE'])
+              }}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            >
+              <option value="NEW,ACTIVE">Active & New</option>
+              <option value="NEW">New Only</option>
+              <option value="ACTIVE">Active Only</option>
+              <option value="CONTACTED">Contacted</option>
+              <option value="QUALIFIED">Qualified</option>
+              <option value="NEW,ACTIVE,CONTACTED,QUALIFIED">All Statuses</option>
+            </select>
+          </div>
+
+          {/* Score Range */}
+          <div>
+            <select
+              value={minScore}
+              onChange={e => setMinScore(parseInt(e.target.value))}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+            >
+              <option value="0">All Scores</option>
+              <option value="80">80+ (High)</option>
+              <option value="60">60+ (Medium)</option>
+              <option value="40">40+ (Low)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Active Filters Summary */}
+        {(selectedStates.length > 0 || searchQuery || minScore > 0) && (
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex items-center gap-2 flex-wrap">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              Active filters:
+            </span>
+
+            {selectedStates.length > 0 && (
+              <span className="inline-flex items-center px-2 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-md text-xs font-medium">
+                {selectedStates.length} state{selectedStates.length !== 1 ? 's' : ''}
+              </span>
+            )}
+
+            {searchQuery && (
+              <span className="inline-flex items-center px-2 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-md text-xs font-medium">
+                Search: "{searchQuery}"
+              </span>
+            )}
+
+            {minScore > 0 && (
+              <span className="inline-flex items-center px-2 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-md text-xs font-medium">
+                Score: {minScore}+
+              </span>
+            )}
+
+            <button
+              onClick={() => {
+                setSelectedStates([])
+                setSearchQuery('')
+                setMinScore(0)
+                setMaxScore(999)
+              }}
+              className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 underline"
+            >
+              Clear all
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Loading State */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!loading && leads.length === 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-12 text-center">
+          <Filter className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+            No leads found
+          </h3>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
+            Try adjusting your filters to see more results
+          </p>
+          <Button
+            onClick={() => {
+              setSelectedStates([])
+              setSearchQuery('')
+              setMinScore(0)
+              setMaxScore(999)
+            }}
+            variant="outline"
+          >
+            Clear filters
+          </Button>
+        </div>
+      )}
+
+      {/* Leads Grid */}
+      {!loading && leads.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {leads.map(lead => (
+            <LeadCard key={lead.id} lead={lead} />
+          ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2">
+          <Button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+            variant="outline"
+            size="sm"
+          >
+            Previous
+          </Button>
+
+          <div className="flex items-center gap-1">
+            {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
+              let pageNum
+              if (totalPages <= 7) {
+                pageNum = i + 1
+              } else if (page <= 4) {
+                pageNum = i + 1
+              } else if (page >= totalPages - 3) {
+                pageNum = totalPages - 6 + i
+              } else {
+                pageNum = page - 3 + i
+              }
+
+              return (
+                <Button
+                  key={i}
+                  onClick={() => setPage(pageNum)}
+                  variant={page === pageNum ? 'default' : 'ghost'}
+                  size="sm"
+                  className="w-8 h-8 p-0"
+                >
+                  {pageNum}
+                </Button>
+              )
+            })}
+          </div>
+
+          <Button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            variant="outline"
+            size="sm"
+          >
+            Next
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
