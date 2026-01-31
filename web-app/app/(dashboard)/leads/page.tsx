@@ -72,26 +72,37 @@ export default function LeadsPage() {
   const totalPages = Math.ceil(total / limit)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between pb-6 border-b-2 border-gray-100 dark:border-gray-800">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Leads
+          <h1 className="text-4xl font-black text-gray-900 dark:text-white mb-2">
+            Lead Intelligence
           </h1>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            {total} leads available • Showing {leads.length} on this page
+          <p className="text-base text-gray-600 dark:text-gray-400">
+            {total > 0 ? (
+              <>
+                <span className="font-bold text-primary-600 dark:text-primary-400">{total}</span> qualified leads discovered
+                {selectedStates.length > 0 && <> in <span className="font-semibold">{selectedStates.length} state{selectedStates.length !== 1 ? 's' : ''}</span></>}
+              </>
+            ) : (
+              'No leads found matching your criteria'
+            )}
           </p>
         </div>
 
-        <Button onClick={handleExport} variant="outline" className="gap-2">
+        <Button onClick={handleExport} variant="outline" className="gap-2 px-6">
           <Download className="h-4 w-4" />
-          Export
+          Export Data
         </Button>
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+      <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl border-2 border-gray-100 dark:border-gray-700 p-6 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <Filter className="h-5 w-5 text-primary-600 dark:text-primary-400" />
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">Filters</h2>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Search */}
           <div className="relative">
@@ -218,11 +229,23 @@ export default function LeadsPage() {
 
       {/* Leads Grid */}
       {!loading && leads.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {leads.map(lead => (
-            <LeadCard key={lead.id} lead={lead} />
-          ))}
-        </div>
+        <>
+          {/* Results Summary */}
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Showing <span className="font-semibold text-gray-900 dark:text-white">{leads.length}</span> of <span className="font-semibold text-gray-900 dark:text-white">{total}</span> leads
+            </p>
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              Page {page} of {totalPages}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {leads.map(lead => (
+              <LeadCard key={lead.id} lead={lead} />
+            ))}
+          </div>
+        </>
       )}
 
       {/* Pagination */}
