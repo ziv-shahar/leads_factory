@@ -98,7 +98,9 @@ export async function GET(request: Request) {
         .single()
 
       if (userPerms) {
-        const roleMaxDaily = userPerms.role?.permissions?.max_daily_leads
+        // Type assertion to handle Supabase relationship
+        const role = userPerms.role as { permissions?: any } | null
+        const roleMaxDaily = role?.permissions?.max_daily_leads
         dailyLimitMax =
           userPerms.max_daily_leads !== null
             ? userPerms.max_daily_leads
