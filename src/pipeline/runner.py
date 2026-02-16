@@ -15,7 +15,7 @@ from src.config import (
     BUILDING_PROCESSING_ENABLED
 )
 from src.db.session import get_db
-from src.db.models import RawEvent, Entity, Event, LeadCurrent
+from src.db.models import RawEvent, Entity, Event, LeadCurrent, LocationLead
 from src.io.raw_reader import RawFileReader
 from src.llm.normalizer import Normalizer, compute_content_hash
 from src.llm.schemas import get_normalized_name
@@ -170,7 +170,15 @@ class PipelineRunner:
         else:
             self._run_sequential(file_entries)
 
-        # Phase 3: Print summary
+        # Phase 3: Ensure all entities have location leads
+        print("\n" + "="*80)
+        print("ENSURING ALL ENTITIES HAVE LOCATION LEADS")
+        print("="*80)
+        with get_db() as db:
+            self._ensure_all_entities_have_location_leads(db)
+            db.commit()
+
+        # Phase 4: Print summary
         print("\n" + "="*80)
         print("PIPELINE SUMMARY")
         print("="*80)
@@ -951,6 +959,68 @@ class PipelineRunner:
 
         # Fallback: return None
         return None
+
+    def _ensure_all_entities_have_location_leads(self, db: Session):
+        """
+        Ensure every entity has at least one location_lead record.
+
+        For entities without location_leads, create a default record using:
+        - HQ state from entity_metadata
+        - Score of 0 (since no location-specific events exist)
+        - Status 'NEW'
+        """
+        # Get all entities
+        all_entities = db.query(Entity).all()
+
+        # Get entities that already have location_leads
+        entities_with_leads = db.query(LocationLead.entity_id).distinct().all()
+        entity_ids_with_leads = {e[0] for e in entities_with_leads}
+
+        # Find entities without location_leads
+        entities_without_leads = [e for e in all_entities if e.id not in entity_ids_with_leads]
+
+        print(f"\nFound {len(entities_without_leads)} entities without location_leads")
+
+        created_count = 0
+        skipped_count = 0
+
+        for entity in entities_without_leads:
+            # Try to get HQ state from entity_metadata
+            metadata = entity.entity_metadata or {}
+            hq_state = metadata.get('hq_state')
+            hq_city = metadata.get('hq_city')
+
+            if not hq_state:
+                # No HQ state - skip this entity
+                print(f"  ⊘ Skipped {entity.canonical_name}: No HQ state in metadata")
+                skipped_count += 1
+                continue
+
+            # Validate state code (should be 2 letters)
+            if len(hq_state) != 2:
+                print(f"  ⊘ Skipped {entity.canonical_name}: Invalid state code '{hq_state}'")
+                skipped_count += 1
+                continue
+
+            # Create default location_lead
+            location_lead = LocationLead(
+                entity_id=entity.id,
+                state=hq_state.upper(),  # Normalize to uppercase
+                city=hq_city,
+                score=0,  # No location-specific events
+                confidence_score=0.0,
+                status='NEW',
+                event_count=0,
+                reasons={},
+                last_event_date=None
+            )
+
+            db.add(location_lead)
+            print(f"  ✓ Created default location_lead for {entity.canonical_name} in {hq_state}")
+            created_count += 1
+
+        print(f"\n✓ Created {created_count} default location_leads")
+        print(f"⊘ Skipped {skipped_count} entities (no HQ state)")
 
     def _print_summary(self, db: Session):
         """Print pipeline summary."""
