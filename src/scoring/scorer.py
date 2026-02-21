@@ -29,38 +29,43 @@ class LeadScorer:
             "acquisition": 18,             # Office integration/consolidation
             "hiring_surge": 15,            # Expansion signal
             "layoffs": 15,                 # Downsizing signal (equally valuable!)
-            "expansion": 15,               # Direct expansion signal
+            "expansion": 18,               # Direct expansion signal - INCREASED (most predictive)
+            "contraction": 12,             # Direct downsizing signal
             "market_entry": 12,            # Potential new offices
-            "product_launch": 12,          # May indicate growth
-            "partnership": 10,             # Potential co-location
-            "leadership_change": 8,        # May drive changes
-            "technology_adoption": 7,      # Infrastructure changes
-            "award_recognition": 5,        # Weak signal
-            "compliance_issue": 5,       # Risk signal (not office-related)
-            "other": 5
+            "product_launch": 3,           # Reduced - rarely indicates office needs
+            "partnership": 10,             # Only physical partnerships (filtered in prompts)
+            "leadership_change": 6,        # Reduced - weak signal
+            "contract_awarded": 10,        # Government/enterprise contracts
+            "permit_issued": 5,            # Building permits
+            "technology_adoption": 2,      # Reduced - almost never indicates office needs
+            "award_recognition": 2,        # Reduced - not predictive
+            "compliance_issue": 5,         # Risk signal (not office-related)
+            "other": 3                     # Reduced default score
         }
 
         # Dynamic signal scoring for OFFICE SPACE PREDICTION
         # Both expansion and downsizing signals are positive
         self.signal_scores = {
             "acquisition_negotiation": 15,
-            "office_expansion": 12,              # Direct office expansion
+            "office_expansion": 15,              # Direct office expansion - INCREASED (most predictive)
             "office_downsizing": 12,             # Direct office downsizing (positive!)
             "office_consolidation": 12,          # Office changes (positive!)
             "office_closure": 10,                # Office closure = relocation need
+            "office_relocation_urgent": 15,      # Building demolition/urgent relocation
             "office_integration": 10,            # Post-acquisition integration
             "international_expansion": 12,
             "employee_growth": 10,
             "employee_relocation": 10,           # Relocation = office changes
             "government_expansion": 10,
+            "government_lease_opportunity": 10,  # Government seeking space
             "market_expansion": 10,
             "remote_work_transition": 8,         # May reduce office needs (still valuable signal)
             "hq_expansion": 12,                  # HQ expansion
-            "customer_growth": 8,
+            "customer_growth": 5,                # Reduced - weak signal unless massive
             "engineering_capacity_buildup": 8,
             "hiring_surge": 10,                  # As dynamic signal
-            "new_product_line": 8,
-            "patent_filing": 6,
+            "new_product_line": 3,               # Reduced - not predictive
+            "patent_filing": 2,                  # Reduced - not predictive
         }
 
     def score_and_materialize_lead(self, db: Session, entity: Entity) -> LeadCurrent:

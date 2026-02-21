@@ -28,18 +28,18 @@ class LocationLeadScorer:
             "acquisition": 18,
             "hiring_surge": 15,
             "layoffs": 15,
-            "expansion": 15,
+            "expansion": 18,  # Direct office space signal - increased from 15
             "contraction": 12,  # Building demolition, downsizing
             "market_entry": 12,
-            "product_launch": 12,
-            "partnership": 10,
-            "leadership_change": 8,
+            "product_launch": 3,  # Reduced from 12 - rarely indicates office needs
+            "partnership": 10,  # Keep at 10 since we're now filtering to only physical partnerships
+            "leadership_change": 6,  # Reduced from 8 - weak signal
             "contract_awarded": 10,
             "permit_issued": 5,
-            "technology_adoption": 7,
-            "award_recognition": 5,
+            "technology_adoption": 2,  # Reduced from 7 - almost never indicates office needs
+            "award_recognition": 2,  # Reduced from 5 - not predictive
             "compliance_issue": 5,
-            "other": 5
+            "other": 3  # Reduced from 5
         }
 
         # Dynamic signal scoring

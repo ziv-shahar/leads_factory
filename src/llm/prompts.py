@@ -18,42 +18,81 @@ CRITICAL RULES:
 8. List any fields you couldn't extract in "missing_fields"
 
 RELEVANCE CHECK FOR OFFICE SPACE PREDICTION:
-Set is_relevant=true ONLY if the document contains signals indicating potential office space changes:
+Set is_relevant=true ONLY if the document contains DIRECT signals indicating potential PHYSICAL office space changes.
 
-STRONG SIGNALS (highly relevant):
-- Hiring surge or significant headcount growth → need more space
-- Layoffs or workforce reductions → may downsize/relocate
-- Funding rounds (Series A+) → likely to hire and expand
-- Office expansion or relocation announcements → direct signal
-- Acquisition of another company → may need to consolidate offices
+CRITICAL RULE: Focus on PHYSICAL SPACE needs, not digital/virtual partnerships or product features.
+
+STRONG SIGNALS (highly relevant - always extract):
+- Hiring surge or significant headcount growth (50+ employees) → need more space
+- Layoffs or workforce reductions (20%+ or 100+ people) → may downsize/relocate
+- Funding rounds (Series A+, $10M+) → likely to hire and expand
+- EXPLICIT office expansion, relocation, or lease announcements → direct signal
+- Acquisition of another company (with integration/consolidation mentioned) → may need to consolidate offices
 - New office openings in new cities/countries → expansion signal
-- Remote work policy changes → may reduce/change office needs
-- Company growth metrics (revenue growth, customer growth) → scaling signal
+- Remote work policy changes (RTO mandates, downsizing offices) → changes space needs
+- Seeking office space, RFPs for leases, real estate searches → direct signal
 
-MODERATE SIGNALS (contextually relevant):
-- Partnership announcements (if they involve co-location or joint offices)
-- Market entry into new regions (may open offices)
-- Leadership changes (new executives often drive growth/change)
+MODERATE SIGNALS (extract only if PHYSICAL office impact is clear):
+- Market entry into new regions WITH mention of local offices/hiring
+- Leadership changes PAIRED with growth/expansion plans
+- Company growth metrics (revenue 2x+, customer growth 10x+) indicating scaling
 
-WEAK/NOT RELEVANT (ignore):
-- Product launches (unless paired with hiring)
-- Marketing campaigns
-- Customer wins (unless at massive scale indicating need for support teams)
-- Awards or recognition (unless paired with growth signals)
-- Technology adoptions (unless infrastructure-related)
-- Personal blogs or consumer reviews
-- Generic industry news
+PARTNERSHIPS - BE VERY SELECTIVE:
+✅ EXTRACT these partnership types (physical office implications):
+- Joint ventures requiring shared office space or new facilities
+- Manufacturing/distribution partnerships requiring warehouses/facilities
+- Co-location agreements (sharing office space)
+- Regional partnerships requiring local presence/staff
+- Examples:
+  - "Acme partners with BetaCo to open joint innovation lab in Austin" → ✅ EXTRACT (new facility)
+  - "Companies announce joint venture requiring 500 new employees" → ✅ EXTRACT (hiring)
+
+❌ DO NOT EXTRACT these partnership types (no physical space implications):
+- Technology integration partnerships (APIs, software, platforms)
+- Product collaborations (features, integrations, cross-selling)
+- Marketing partnerships (co-marketing, affiliate programs)
+- Data sharing agreements
+- Reseller/distribution partnerships (unless requiring physical warehouses)
+- Examples:
+  - "Walmart partners with Google for AI shopping features" → ❌ IGNORE (pure tech integration)
+  - "Company partners with cloud provider for data analytics" → ❌ IGNORE (software only)
+  - "Brands collaborate on limited edition product" → ❌ IGNORE (product collaboration)
+
+WEAK/NOT RELEVANT (always ignore - these do NOT predict office space needs):
+- Product launches (new features, apps, services) - unless paired with 50+ new hires
+- Marketing campaigns, advertising deals, sponsorships
+- Technology partnerships without physical presence (cloud, SaaS, APIs)
+- Customer wins, new clients (unless at massive scale requiring 100+ support staff)
+- Awards, recognition, certifications, rankings
+- Technology adoptions (switching to new software, cloud migration)
+- Personal blogs, opinion pieces, consumer reviews
+- Generic industry news, market analysis, predictions
+- Social media announcements without concrete actions
+- Executive interviews or thought leadership content
+- Product updates, bug fixes, feature releases
+- Pricing changes, new subscription tiers
+- M&A rumors without confirmation
+- Conference appearances, speaking engagements
+
+EXAMPLES TO CLARIFY:
+❌ "Nike partners with Apple for fitness tracking" → IGNORE (tech integration, no office impact)
+❌ "Starbucks partners with Spotify for in-store music" → IGNORE (product feature, no hiring)
+❌ "Bank integrates with fintech for payment processing" → IGNORE (software integration)
+❌ "Retailer announces loyalty program partnership" → IGNORE (marketing program)
+✅ "Companies announce joint R&D center in Boston with 300 researchers" → EXTRACT (new facility + hiring)
+✅ "Partnership requires opening 5 new distribution centers" → EXTRACT (physical facilities)
 
 MULTI-COMPANY HANDLING:
-When multiple companies are mentioned (e.g., "Company A acquires Company B"):
-1. Create separate events for EACH company
-2. Company A gets event_type="acquisition"
-3. Company B gets event_type="acquisition" (from their perspective - being acquired)
-4. Cross-reference in key_facts or dynamic_signals
+When multiple companies are mentioned in events with PHYSICAL office implications:
+1. Create separate events for EACH company (only if the event is relevant to office space)
+2. For acquisitions: Both companies get event_type="acquisition"
+3. For partnerships: Only extract if partnership has physical office implications (see PARTNERSHIPS section above)
+4. Cross-reference companies in key_facts or dynamic_signals
 
 Examples:
-- "Acme acquires BetaCorp" → 2 events: [Acme: acquisition, BetaCorp: acquisition]
-- "Acme partners with TechCo" → 2 events: [Acme: partnership, TechCo: partnership]
+- "Acme acquires BetaCorp for $100M" → 2 events: [Acme: acquisition, BetaCorp: acquisition]
+- "Acme and TechCo open joint innovation lab in Austin" → 2 events: [Acme: expansion, TechCo: expansion]
+- "Acme partners with Google for AI features" → 0 events (tech integration, no office impact - IGNORE)
 - "Acme hires 100 people" → 1 event: [Acme: hiring_surge]
 
 MULTIPLE EVENT TYPES FOR SAME COMPANY:
