@@ -973,8 +973,8 @@ class PipelineRunner:
         all_entities = db.query(Entity).all()
 
         # Get entities that already have location_leads
-        entities_with_leads = db.query(LocationLead.entity_id).distinct().all()
-        entity_ids_with_leads = {e[0] for e in entities_with_leads}
+        location_leads = db.query(LocationLead).all()
+        entity_ids_with_leads = {lead.entity_id for lead in location_leads}
 
         # Find entities without location_leads
         entities_without_leads = [e for e in all_entities if e.id not in entity_ids_with_leads]

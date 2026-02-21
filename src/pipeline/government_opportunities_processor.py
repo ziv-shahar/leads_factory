@@ -400,6 +400,7 @@ def create_opportunity_event(
             entity_type="government_agency",
             entity_metadata=entity_metadata,
             event_type="expansion",  # New lease = expansion
+            temporal_status="planned",  # Government seeking space = planned future move
             summary=summary,
             key_facts=KeyFact(**key_facts_dict) if key_facts_dict else None,
             source_url=source_url,

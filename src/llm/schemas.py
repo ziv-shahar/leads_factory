@@ -63,7 +63,7 @@ class NormalizedEvent(BaseModel):
 
     # Temporal status - critical for filtering planned vs completed moves
     temporal_status: str = Field(
-        ...,
+        default="completed",
         description="Whether this event is 'planned' (future/seeking/will do), 'in_progress' (currently happening), or 'completed' (already done/past tense)"
     )
 
