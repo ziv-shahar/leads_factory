@@ -75,16 +75,24 @@ class LeadScorer:
             LeadCurrent record
         """
         # Get all events for this entity
-        events = db.query(Event).filter(Event.entity_id == entity.id).all()
+        all_events = db.query(Event).filter(Event.entity_id == entity.id).all()
+
+        # Filter out "completed" events - we only want planned/in_progress for predictive leads
+        # Skip events that already happened (not predictive of future space needs)
+        events = []
+        for event in all_events:
+            temporal_status = event.strict.get("temporal_status", "completed")
+            if temporal_status in ["planned", "in_progress"]:
+                events.append(event)
 
         if not events:
-            # No events = minimal lead
+            # No planned/in_progress events = minimal lead
             return self._create_or_update_lead(
                 db, entity,
                 score=0,
                 confidence=0.0,
                 status="NEW",
-                reasons={"reason": "No events found for this entity"}
+                reasons={"reason": "No planned or in-progress events found for this entity"}
             )
 
         # Group events by (event_type, date) to avoid duplicate event inflation

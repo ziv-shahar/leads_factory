@@ -103,6 +103,45 @@ EVENT TYPES (use these - work for any entity type):
 - market_entry: Entering new markets or regions
 - other: Anything else relevant to space needs
 
+TEMPORAL STATUS (CRITICAL FOR LEAD PREDICTION):
+Classify each event's temporal status to distinguish between planned future moves vs completed past moves:
+
+temporal_status values:
+- "planned": Event is FUTURE/PLANNED - company is seeking, planning, will do, or considering
+  * Keywords: "seeking", "plans to", "will", "looking for", "considering", "to expand", "intends to"
+  * Examples:
+    - "Acme is seeking office space in Austin" → planned
+    - "Company plans to hire 500 people next year" → planned
+    - "GSA issued RFP for office lease in Miami" → planned (seeking tenant)
+    - "Company will open London office in Q2" → planned
+
+- "in_progress": Event is CURRENTLY HAPPENING - active negotiations, ongoing process
+  * Keywords: "is expanding", "is hiring", "currently", "ongoing", "in process"
+  * Examples:
+    - "Company is currently hiring 200 engineers" → in_progress
+    - "Acme is in negotiations to acquire BetaCorp" → in_progress
+
+- "completed": Event ALREADY HAPPENED - past tense, done, finished
+  * Keywords: "opened", "hired", "raised", "acquired", "announced", "completed", "signed lease"
+  * Examples:
+    - "Acme opened new office in Seattle" → completed
+    - "Company hired 300 people last quarter" → completed
+    - "GSA signed 10-year lease for Austin building" → completed
+    - "Company raised $50M in Series B" → completed
+
+CRITICAL RULES:
+1. For office/expansion moves: ONLY extract if temporal_status is "planned" or "in_progress"
+2. If an event describes something that already happened (past tense), mark as "completed"
+3. Be strict: "Acme expanded to 3 cities" is COMPLETED, not future-predictive
+4. Default to "completed" when temporal status is ambiguous
+
+Examples with temporal classification:
+- "Waymo is seeking office space in Los Angeles" → temporal_status="planned" ✓ EXTRACT
+- "Waymo opened new office in Los Angeles" → temporal_status="completed" ✓ EXTRACT but mark completed
+- "GSA seeks proposals for office lease in Miami" → temporal_status="planned" ✓ EXTRACT
+- "Company plans to hire 1000 people" → temporal_status="planned" ✓ EXTRACT
+- "Company hired 1000 people last month" → temporal_status="completed" ✓ EXTRACT but mark completed
+
 ENTITY IDENTIFICATION RULES:
 - entity_name_raw: Extract EXACTLY as it appears in the document
 - entity_name_canonical: Convert to UPPERCASE, remove suffixes (INC/LLC/AGENCY/DEPT/etc), normalize whitespace

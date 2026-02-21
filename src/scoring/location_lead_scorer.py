@@ -84,14 +84,19 @@ class LocationLeadScorer:
         ).all()
 
         # Filter events by state (check key_facts.state)
+        # Also filter out "completed" events - we only want planned/in_progress
         state_events = []
         for event in events:
             event_state = event.strict.get("key_facts", {}).get("state")
-            if event_state == state:
+            temporal_status = event.strict.get("temporal_status", "completed")
+
+            # Only include events in this state that are planned or in_progress
+            # Skip completed events (already happened - not predictive)
+            if event_state == state and temporal_status in ["planned", "in_progress"]:
                 state_events.append(event)
 
         if not state_events:
-            # No events in this state - don't create LocationLead
+            # No planned/in_progress events in this state - don't create LocationLead
             return None
 
         # Group events by (event_type, date) to avoid duplicate inflation

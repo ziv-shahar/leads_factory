@@ -61,6 +61,12 @@ class NormalizedEvent(BaseModel):
     event_type: str = Field(..., description="Event type from predefined list")
     summary: str = Field(..., description="Brief summary of the event (1-2 sentences)")
 
+    # Temporal status - critical for filtering planned vs completed moves
+    temporal_status: str = Field(
+        ...,
+        description="Whether this event is 'planned' (future/seeking/will do), 'in_progress' (currently happening), or 'completed' (already done/past tense)"
+    )
+
     # Optional structured data
     key_facts: Optional[KeyFact] = Field(None, description="Structured facts extracted from event")
     source_url: Optional[str] = Field(None, description="URL mentioned in source if available")
@@ -84,6 +90,16 @@ class NormalizedEvent(BaseModel):
         # Allow "other" as fallback
         if v not in EVENT_TYPES:
             return "other"
+        return v
+
+    @field_validator('temporal_status')
+    @classmethod
+    def validate_temporal_status(cls, v):
+        """Validate temporal status."""
+        valid_statuses = ['planned', 'in_progress', 'completed']
+        if v not in valid_statuses:
+            # Default to 'completed' if unclear
+            return 'completed'
         return v
 
     @field_validator('entity_name_canonical')
