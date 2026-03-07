@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { EventTimeline } from '@/components/leads/event-timeline'
-import { ScoreBreakdown } from '@/components/leads/score-breakdown'
 import { Button } from '@/components/ui/button'
 import {
   ArrowLeft,
@@ -16,11 +15,20 @@ import {
   Loader2,
   Calendar,
   TrendingUp,
+  FileText,
+  DollarSign,
+  Ruler,
 } from 'lucide-react'
 import type { LeadWithEntity, Event } from '@/types/database'
 import { formatDistanceToNow, format } from 'date-fns'
 import { cn } from '@/lib/utils/cn'
 import Link from 'next/link'
+import {
+  formatDeadlineWithCountdown,
+  getDeadlineUrgency,
+  getUrgencyColor,
+  type OpportunityData
+} from '@/lib/utils/opportunity'
 
 export default function LeadDetailPage() {
   const params = useParams()
@@ -89,12 +97,26 @@ export default function LeadDetailPage() {
 
   const { entity } = lead
 
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-success-600 dark:text-success-400 bg-success-100 dark:bg-success-900/30'
-    if (score >= 60) return 'text-primary-600 dark:text-primary-400 bg-primary-100 dark:bg-primary-900/30'
-    if (score >= 40) return 'text-warning-600 dark:text-warning-400 bg-warning-100 dark:bg-warning-900/30'
-    return 'text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700'
-  }
+  // Check if this is a government opportunity
+  const isGovernmentOpportunity = entity.entity_type === 'government_agency'
+
+  // Extract opportunity data from the first event (if it exists)
+  const opportunityEvent = isGovernmentOpportunity && events.length > 0 ? events[0] : null
+  const opportunityData: OpportunityData | undefined = opportunityEvent ? {
+    solicitation_number: opportunityEvent.strict?.key_facts?.other?.solicitation_number,
+    response_deadline: opportunityEvent.strict?.key_facts?.other?.response_deadline,
+    opportunity_status: opportunityEvent.strict?.key_facts?.other?.opportunity_status,
+    notice_type: opportunityEvent.strict?.key_facts?.other?.notice_type,
+    aboa_sf_min: opportunityEvent.strict?.key_facts?.aboa_sf_min,
+    aboa_sf_max: opportunityEvent.strict?.key_facts?.aboa_sf_max,
+    amount: opportunityEvent.strict?.key_facts?.amount,
+    delineated_area: opportunityEvent.strict?.key_facts?.other?.delineated_area,
+    lease_term_years: opportunityEvent.strict?.key_facts?.other?.lease_term_years,
+    firm_term_years: opportunityEvent.strict?.key_facts?.other?.firm_term_years,
+    parking_spaces: opportunityEvent.strict?.key_facts?.other?.parking_spaces,
+    facility_security_level: opportunityEvent.strict?.key_facts?.other?.facility_security_level,
+    sub_agency: opportunityEvent.strict?.key_facts?.other?.sub_agency,
+  } : undefined
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -231,71 +253,229 @@ export default function LeadDetailPage() {
         </div>
 
         {/* Metrics Row */}
-        <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700 grid grid-cols-2 md:grid-cols-4 gap-4">
-          {/* Score */}
-          <div>
-            <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Lead Score</p>
-            <div className={cn('inline-flex items-center px-3 py-1.5 rounded-lg text-lg font-bold', getScoreColor(lead.score))}>
-              {lead.score}
+        <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+          {isGovernmentOpportunity && opportunityData ? (
+            // Government Opportunity Metrics
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {/* Status */}
+              <div>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">Status</p>
+                <span className={cn('inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium', getStatusColor(lead.status))}>
+                  {lead.status}
+                </span>
+              </div>
+
+              {/* Deadline */}
+              {opportunityData.response_deadline && (
+                <div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">Deadline</p>
+                  {(() => {
+                    const deadlineInfo = formatDeadlineWithCountdown(opportunityData.response_deadline)
+                    const urgency = getDeadlineUrgency(opportunityData.response_deadline)
+                    return (
+                      <div>
+                        <div className="text-sm font-bold text-gray-900 dark:text-white">
+                          {deadlineInfo.formatted}
+                        </div>
+                        <div className={cn('text-xs font-semibold mt-1', getUrgencyColor(urgency).split(' ')[0].replace('bg-', 'text-'))}>
+                          ({deadlineInfo.countdown})
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              )}
+
+              {/* Size */}
+              {(opportunityData.aboa_sf_min || opportunityData.aboa_sf_max) && (
+                <div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">Size</p>
+                  <div className="text-sm font-bold text-gray-900 dark:text-white">
+                    {opportunityData.aboa_sf_min && opportunityData.aboa_sf_max
+                      ? `${opportunityData.aboa_sf_min.toLocaleString()}-${opportunityData.aboa_sf_max.toLocaleString()} sq ft`
+                      : opportunityData.aboa_sf_min
+                      ? `${opportunityData.aboa_sf_min.toLocaleString()}+ sq ft`
+                      : `Up to ${opportunityData.aboa_sf_max?.toLocaleString()} sq ft`
+                    }
+                  </div>
+                </div>
+              )}
+
+              {/* Budget */}
+              {opportunityData.amount && (
+                <div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">Budget</p>
+                  <div className="text-sm font-bold text-gray-900 dark:text-white">
+                    {opportunityData.amount}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
+          ) : (
+            // Business Event Metrics
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {/* Status */}
+              <div>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">Status</p>
+                <span className={cn('inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium', getStatusColor(lead.status))}>
+                  {lead.status}
+                </span>
+              </div>
 
-          {/* Status */}
-          <div>
-            <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Status</p>
-            <span className={cn('inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium', getStatusColor(lead.status))}>
-              {lead.status}
-            </span>
-          </div>
+              {/* Events */}
+              <div>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">Signals</p>
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-gray-500" />
+                  <span className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {lead.event_count}
+                  </span>
+                </div>
+              </div>
 
-          {/* Events */}
-          <div>
-            <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Events</p>
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-gray-500" />
-              <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                {lead.event_count}
-              </span>
+              {/* Last Activity */}
+              <div>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">Last Activity</p>
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {lead.last_event_date
+                      ? formatDistanceToNow(new Date(lead.last_event_date), { addSuffix: true })
+                      : 'Unknown'}
+                  </span>
+                </div>
+              </div>
             </div>
-          </div>
-
-          {/* Last Activity */}
-          <div>
-            <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Last Activity</p>
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-gray-500" />
-              <span className="text-sm font-medium text-gray-900 dark:text-white">
-                {lead.last_event_date
-                  ? formatDistanceToNow(new Date(lead.last_event_date), { addSuffix: true })
-                  : 'Unknown'}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Confidence Score */}
-        <div className="mt-4">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600 dark:text-gray-400">Confidence Score</span>
-            <span className="font-medium text-gray-900 dark:text-white">
-              {Math.round(lead.confidence_score * 100)}%
-            </span>
-          </div>
-          <div className="mt-2 w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-primary-500 dark:bg-primary-600 rounded-full transition-all"
-              style={{ width: `${lead.confidence_score * 100}%` }}
-            />
-          </div>
+          )}
         </div>
       </div>
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Sidebar - Score Breakdown */}
+        {/* Left Sidebar - Opportunity Details or Metadata */}
         <div className="lg:col-span-1">
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 sticky top-6">
-            <ScoreBreakdown reasons={lead.reasons} totalScore={lead.score} />
+            {isGovernmentOpportunity && opportunityData ? (
+              // Government Opportunity Details
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Opportunity Details
+                </h3>
+                <dl className="space-y-4">
+                  {opportunityData.solicitation_number && (
+                    <div>
+                      <dt className="text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1">
+                        Solicitation
+                      </dt>
+                      <dd className="text-sm font-mono font-semibold text-gray-900 dark:text-white">
+                        {opportunityData.solicitation_number}
+                      </dd>
+                    </div>
+                  )}
+
+                  {opportunityData.sub_agency && (
+                    <div>
+                      <dt className="text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1">
+                        Sub-Agency
+                      </dt>
+                      <dd className="text-sm font-medium text-gray-900 dark:text-white">
+                        {opportunityData.sub_agency}
+                      </dd>
+                    </div>
+                  )}
+
+                  {opportunityData.notice_type && (
+                    <div>
+                      <dt className="text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1">
+                        Notice Type
+                      </dt>
+                      <dd className="text-sm font-medium text-gray-900 dark:text-white">
+                        {opportunityData.notice_type}
+                      </dd>
+                    </div>
+                  )}
+
+                  {opportunityData.delineated_area && (
+                    <div>
+                      <dt className="text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1">
+                        Delineated Area
+                      </dt>
+                      <dd className="text-sm font-medium text-gray-900 dark:text-white">
+                        {opportunityData.delineated_area}
+                      </dd>
+                    </div>
+                  )}
+
+                  {opportunityData.lease_term_years && (
+                    <div>
+                      <dt className="text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1">
+                        Lease Terms
+                      </dt>
+                      <dd className="text-sm font-medium text-gray-900 dark:text-white">
+                        {opportunityData.lease_term_years} year lease
+                        {opportunityData.firm_term_years && ` (${opportunityData.firm_term_years} year firm term)`}
+                      </dd>
+                    </div>
+                  )}
+
+                  {opportunityData.parking_spaces && (
+                    <div>
+                      <dt className="text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1">
+                        Parking
+                      </dt>
+                      <dd className="text-sm font-medium text-gray-900 dark:text-white">
+                        {opportunityData.parking_spaces} spaces required
+                      </dd>
+                    </div>
+                  )}
+
+                  {opportunityData.facility_security_level && (
+                    <div>
+                      <dt className="text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1">
+                        Security Level
+                      </dt>
+                      <dd className="text-sm font-medium text-gray-900 dark:text-white">
+                        Level {opportunityData.facility_security_level}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+            ) : (
+              // Business Event Summary
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  Lead Summary
+                </h3>
+                <div className="space-y-3">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {lead.event_count} signal{lead.event_count !== 1 ? 's' : ''} detected for this lead.
+                  </p>
+                  {entity.entity_metadata.industry && (
+                    <div>
+                      <dt className="text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1">
+                        Industry
+                      </dt>
+                      <dd className="text-sm font-medium text-gray-900 dark:text-white">
+                        {entity.entity_metadata.industry}
+                      </dd>
+                    </div>
+                  )}
+                  {entity.entity_metadata.employee_count && (
+                    <div>
+                      <dt className="text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1">
+                        Company Size
+                      </dt>
+                      <dd className="text-sm font-medium text-gray-900 dark:text-white">
+                        {entity.entity_metadata.employee_count}+ employees
+                      </dd>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Additional Metadata */}
             {Object.keys(entity.entity_metadata).length > 0 && (
