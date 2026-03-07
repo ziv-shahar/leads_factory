@@ -952,7 +952,12 @@ class PipelineRunner:
             else:
                 # Parse deadline and check if it's in the past
                 try:
-                    deadline = datetime.strptime(response_deadline_str, "%Y-%m-%d")
+                    # Handle ISO format like "2026-03-24T16:00:00"
+                    if 'T' in response_deadline_str:
+                        deadline = datetime.fromisoformat(response_deadline_str.replace('Z', '+00:00'))
+                    else:
+                        deadline = datetime.strptime(response_deadline_str, "%Y-%m-%d")
+
                     if deadline < datetime.utcnow():
                         event.expired_at = datetime.utcnow()
                         _print(f"  ⊘ Opportunity expired (deadline was {deadline.date()})")
