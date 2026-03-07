@@ -48,25 +48,48 @@ class LLMClient:
             raise ValueError(f"Unknown LLM provider: {self.provider}")
 
     def _openai_complete(self, system_prompt: str, user_prompt: str, temperature: float, model: str = None) -> str:
-        """OpenAI completion."""
-        try:
-            from openai import OpenAI
-            client = OpenAI(api_key=OPENAI_API_KEY)
+        """OpenAI completion with automatic retry on rate limits."""
+        import time
+        import re
+        from openai import OpenAI, RateLimitError
 
-            use_model = model or "gpt-4o"  # Default to gpt-4o if no model specified
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        use_model = model or "gpt-4o"  # Default to gpt-4o if no model specified
 
-            response = client.chat.completions.create(
-                model=use_model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                # temperature=temperature,
-                response_format={"type": "json_object"}
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            raise RuntimeError(f"OpenAI API error: {str(e)}")
+        max_retries = 5
+        base_delay = 2
+
+        for attempt in range(max_retries):
+            try:
+                response = client.chat.completions.create(
+                    model=use_model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    # temperature=temperature,
+                    response_format={"type": "json_object"}
+                )
+                return response.choices[0].message.content
+
+            except RateLimitError as e:
+                # Parse retry-after time from error message
+                error_msg = str(e)
+                wait_time = base_delay * (2 ** attempt)  # Exponential backoff
+
+                # Try to extract suggested wait time from error message
+                match = re.search(r'try again in ([\d.]+)s', error_msg, re.IGNORECASE)
+                if match:
+                    wait_time = float(match.group(1))
+
+                if attempt < max_retries - 1:
+                    print(f"  ⏳ Rate limit hit, waiting {wait_time:.1f}s (attempt {attempt + 1}/{max_retries})...")
+                    time.sleep(wait_time)
+                else:
+                    raise RuntimeError(f"OpenAI rate limit exceeded after {max_retries} retries: {str(e)}")
+
+            except Exception as e:
+                raise RuntimeError(f"OpenAI API error: {str(e)}")
 
     def _anthropic_complete(self, system_prompt: str, user_prompt: str, temperature: float, model: str = None) -> str:
         """Anthropic completion."""
