@@ -98,7 +98,24 @@ class SupabaseQuery:
             # Binary expression (==, !=, etc.)
             column_name = str(filter_expr.left.key)
             operator = filter_expr.operator.__name__
-            value = filter_expr.right.value
+
+            # Handle NULL comparisons (e.g., expired_at IS NULL)
+            if operator == 'is_':
+                # IS NULL
+                query = query.is_(column_name, 'null')
+                return query
+            elif operator == 'isnot':
+                # IS NOT NULL
+                query = query.not_.is_(column_name, 'null')
+                return query
+
+            # For other operators, extract value
+            # Check if right side has a value attribute (it won't for NULL)
+            if hasattr(filter_expr.right, 'value'):
+                value = filter_expr.right.value
+            else:
+                # Fallback for literal values
+                value = filter_expr.right
 
             if operator == 'eq':
                 query = query.eq(column_name, value)
