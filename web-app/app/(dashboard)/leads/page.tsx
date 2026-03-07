@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { StateFilter } from '@/components/leads/state-filter'
-import { LeadCard } from '@/components/leads/lead-card'
+import { LeadCardRouter } from '@/components/leads/lead-card-router'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Search, Download, Filter, Loader2 } from 'lucide-react'
@@ -17,8 +17,6 @@ export default function LeadsPage() {
   const [selectedStates, setSelectedStates] = useState<string[]>([])
   const [selectedStatus, setSelectedStatus] = useState<LeadStatus[]>(['NEW', 'ACTIVE'])
   const [searchQuery, setSearchQuery] = useState('')
-  const [minScore, setMinScore] = useState(0)
-  const [maxScore, setMaxScore] = useState(999)
 
   // Pagination
   const [page, setPage] = useState(1)
@@ -27,7 +25,7 @@ export default function LeadsPage() {
   // Fetch leads
   useEffect(() => {
     fetchLeads()
-  }, [selectedStates, selectedStatus, searchQuery, minScore, maxScore, page])
+  }, [selectedStates, selectedStatus, searchQuery, page])
 
   async function fetchLeads() {
     setLoading(true)
@@ -43,8 +41,6 @@ export default function LeadsPage() {
       if (searchQuery) {
         params.set('search', searchQuery)
       }
-      params.set('minScore', minScore.toString())
-      params.set('maxScore', maxScore.toString())
       params.set('limit', limit.toString())
       params.set('offset', ((page - 1) * limit).toString())
 
@@ -103,7 +99,7 @@ export default function LeadsPage() {
           <Filter className="h-5 w-5 text-primary-600 dark:text-primary-400" />
           <h2 className="text-lg font-bold text-gray-900 dark:text-white">Filters</h2>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -140,24 +136,10 @@ export default function LeadsPage() {
               <option value="NEW,ACTIVE,CONTACTED,QUALIFIED">All Statuses</option>
             </select>
           </div>
-
-          {/* Score Range */}
-          <div>
-            <select
-              value={minScore}
-              onChange={e => setMinScore(parseInt(e.target.value))}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
-            >
-              <option value="0">All Scores</option>
-              <option value="80">80+ (High)</option>
-              <option value="60">60+ (Medium)</option>
-              <option value="40">40+ (Low)</option>
-            </select>
-          </div>
         </div>
 
         {/* Active Filters Summary */}
-        {(selectedStates.length > 0 || searchQuery || minScore > 0) && (
+        {(selectedStates.length > 0 || searchQuery) && (
           <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex items-center gap-2 flex-wrap">
             <span className="text-sm text-gray-600 dark:text-gray-400">
               Active filters:
@@ -175,18 +157,10 @@ export default function LeadsPage() {
               </span>
             )}
 
-            {minScore > 0 && (
-              <span className="inline-flex items-center px-2 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-md text-xs font-medium">
-                Score: {minScore}+
-              </span>
-            )}
-
             <button
               onClick={() => {
                 setSelectedStates([])
                 setSearchQuery('')
-                setMinScore(0)
-                setMaxScore(999)
               }}
               className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 underline"
             >
@@ -217,8 +191,6 @@ export default function LeadsPage() {
             onClick={() => {
               setSelectedStates([])
               setSearchQuery('')
-              setMinScore(0)
-              setMaxScore(999)
             }}
             variant="outline"
           >
@@ -242,7 +214,7 @@ export default function LeadsPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {leads.map(lead => (
-              <LeadCard key={lead.id} lead={lead} />
+              <LeadCardRouter key={lead.id} lead={lead} />
             ))}
           </div>
         </>
