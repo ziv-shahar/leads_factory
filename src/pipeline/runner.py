@@ -937,6 +937,33 @@ class PipelineRunner:
             raw_ref=file_path,
             opportunity_id=opportunity_id  # Government opportunity ID for upsert
         )
+
+        # Set expired_at for government opportunities based on response_deadline
+        if opportunity_id:
+            from datetime import datetime
+            key_facts = event.strict.get('key_facts', {})
+            other_facts = key_facts.get('other', {})
+            response_deadline_str = other_facts.get('response_deadline')
+
+            # NULL response_deadline means opportunity is already expired/closed
+            if not response_deadline_str:
+                event.expired_at = datetime.utcnow()
+                _print(f"  ⊘ Opportunity expired (no response_deadline)")
+            else:
+                # Parse deadline and check if it's in the past
+                try:
+                    deadline = datetime.strptime(response_deadline_str, "%Y-%m-%d")
+                    if deadline < datetime.utcnow():
+                        event.expired_at = datetime.utcnow()
+                        _print(f"  ⊘ Opportunity expired (deadline was {deadline.date()})")
+                    else:
+                        event.expired_at = None  # Active opportunity
+                        _print(f"  ✓ Opportunity active (deadline: {deadline.date()})")
+                except Exception as e:
+                    self.logger.warning(f"Failed to parse response_deadline '{response_deadline_str}': {e}")
+                    # Can't parse deadline - treat as expired to be safe
+                    event.expired_at = datetime.utcnow()
+
         db.add(event)
         db.flush()
 
@@ -993,7 +1020,12 @@ class PipelineRunner:
 
     def _expire_past_deadline_opportunities(self, db: Session):
         """
-        Mark government opportunities as expired if their response_deadline has passed.
+        Mark government opportunities as expired if their response_deadline has passed or is NULL.
+
+        Expiration rules:
+        - NULL response_deadline → Opportunity is closed/expired (no deadline = already completed)
+        - Past response_deadline → Opportunity deadline passed
+        - Future response_deadline → Opportunity still active
 
         For each expired opportunity:
         1. Set expired_at timestamp on the event
@@ -1020,7 +1052,12 @@ class PipelineRunner:
             other_facts = key_facts.get('other', {})
             response_deadline_str = other_facts.get('response_deadline')
 
+            # NULL response_deadline means opportunity is already expired/closed
             if not response_deadline_str:
+                event.expired_at = datetime.utcnow()
+                expired_count += 1
+                re_scored_entities.add(event.entity_id)
+                self.logger.info(f"Expired opportunity {event.opportunity_id}: no response_deadline (closed)")
                 continue
 
             # Parse deadline
