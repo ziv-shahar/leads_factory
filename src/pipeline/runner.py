@@ -1048,9 +1048,9 @@ class PipelineRunner:
                 continue
 
             # Extract response_deadline from strict JSON
-            key_facts = event.strict.get('key_facts', {})
-            other_facts = key_facts.get('other', {})
-            response_deadline_str = other_facts.get('response_deadline')
+            key_facts = event.strict.get('key_facts', {}) or {}
+            other_facts = key_facts.get('other') or {}
+            response_deadline_str = other_facts.get('response_deadline') if other_facts else None
 
             # NULL response_deadline means opportunity is already expired/closed
             if not response_deadline_str:
