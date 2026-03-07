@@ -304,10 +304,84 @@ def extract_location(opportunity: Dict[str, Any]) -> tuple[Optional[str], Option
     return None, None
 
 
+def is_office_space_relevant(opportunity: Dict[str, Any]) -> bool:
+    """
+    Filter out opportunities that are NOT actual office/commercial space leases.
+
+    Returns False for:
+    - Event spaces, exhibit booths, graduation ceremonies
+    - Non-real-estate NAICS codes
+    - Temporary event rentals
+
+    Args:
+        opportunity: Opportunity dictionary
+
+    Returns:
+        True if this is a relevant office space opportunity, False otherwise
+    """
+    title = opportunity.get("title", "").lower()
+    notice_type = opportunity.get("notice_type", "").lower()
+    naics_code = opportunity.get("naics_code", "")
+
+    # FILTER 1: Skip non-office-space titles
+    irrelevant_keywords = [
+        "event space",
+        "exhibit booth",
+        "booth space",
+        "graduation",
+        "ceremony",
+        "trade show",
+        "conference space",
+        "banquet",
+        "reception",
+    ]
+
+    for keyword in irrelevant_keywords:
+        if keyword in title:
+            logger.info(f"Skipping non-office opportunity: '{title}' (contains '{keyword}')")
+            return False
+
+    # FILTER 2: Only accept NAICS 531120 (Real Estate Leasing) or missing NAICS
+    # Missing NAICS is OK (some opportunities don't specify)
+    if naics_code and naics_code != "531120":
+        logger.info(f"Skipping non-real-estate opportunity: NAICS {naics_code} (need 531120)")
+        return False
+
+    return True
+
+
+def map_status_to_temporal(status: str) -> str:
+    """
+    Map SAM.gov status to temporal_status.
+
+    Args:
+        status: SAM.gov status (forecasted, active, pre_solicitation, awarded, etc.)
+
+    Returns:
+        temporal_status: planned, in_progress, or completed
+    """
+    status_lower = status.lower() if status else ""
+
+    # Future/planned opportunities
+    if status_lower in ["forecasted", "pre_solicitation"]:
+        return "planned"
+
+    # Active solicitations (in progress)
+    if status_lower in ["active"]:
+        return "in_progress"
+
+    # Completed/awarded
+    if status_lower in ["awarded", "completed", "closed", "cancelled"]:
+        return "completed"
+
+    # Default to planned for unknown statuses
+    return "planned"
+
+
 def create_opportunity_event(
     opportunity: Dict[str, Any],
     file_path: str
-) -> Optional[NormalizedEvent]:
+) -> Optional[tuple[NormalizedEvent, str]]:
     """
     Create NormalizedEvent from a government opportunity.
 
@@ -316,30 +390,79 @@ def create_opportunity_event(
         file_path: Path to source file
 
     Returns:
-        NormalizedEvent or None if data is insufficient
+        Tuple of (NormalizedEvent, opportunity_id) or None if data is insufficient
     """
     from src.utils.location_utils import normalize_state, normalize_city
 
     try:
+        # FILTER: Skip non-office-space opportunities
+        if not is_office_space_relevant(opportunity):
+            return None
+
+        # Extract opportunity_id for upsert
+        opportunity_id = opportunity.get("opportunity_id") or opportunity.get("notice_id")
+        if not opportunity_id:
+            logger.warning("Opportunity missing opportunity_id, skipping")
+            return None
+
         # Extract key data
         agency_name = extract_agency_name(opportunity)
-        city, state = extract_location(opportunity)
+
+        # PRIORITY 1: Try delineated_area for location (more accurate)
+        delineated_area = opportunity.get("delineated_area")
+        city, state = None, None
+
+        if delineated_area and delineated_area.strip():
+            # Parse delineated_area like "Fayetteville, AR" or "Berks County, PA"
+            parts = [p.strip() for p in delineated_area.split(",")]
+            if len(parts) >= 2:
+                city = parts[0]
+                state = parts[1]
+                logger.info(f"Using delineated_area for location: {city}, {state}")
+
+        # PRIORITY 2: Fallback to extract_location (city/state fields)
+        if not (city and state):
+            city, state = extract_location(opportunity)
 
         # Normalize location
         normalized_state = normalize_state(state) if state else None
         normalized_city = normalize_city(city) if city else None
 
+        # Extract all fields
         title = opportunity.get("title", "")
         solicitation_number = opportunity.get("solicitation_number", "")
         source_url = opportunity.get("source_url")
         posted_date = opportunity.get("posted_date")
         response_deadline = opportunity.get("response_deadline")
+        notice_type = opportunity.get("notice_type")
+        status = opportunity.get("status")
+
+        # Map status to temporal_status
+        temporal_status = map_status_to_temporal(status)
+
+        # Extract office size
+        aboa_sf_min = opportunity.get("aboa_sf_min")
+        aboa_sf_max = opportunity.get("aboa_sf_max")
+
+        # Extract lease terms
+        lease_term_years = opportunity.get("lease_term_years")
+        firm_term_years = opportunity.get("firm_term_years")
+
+        # Extract other details
+        sub_agency = opportunity.get("sub_agency")
+        award_amount = opportunity.get("award_amount")
+        awardee_name = opportunity.get("awardee_name")
+        parking_spaces = opportunity.get("parking_spaces")
+        parking_reserved = opportunity.get("parking_reserved")
+        tenant_improvement_allowance = opportunity.get("tenant_improvement_allowance")
+        facility_security_level = opportunity.get("facility_security_level")
+        is_aaap = opportunity.get("is_aaap", False)
 
         # Entity name is just the agency name (no location suffix)
         entity_name_raw = agency_name
         entity_name_canonical = agency_name.upper().replace(" ", "")
 
-        # Build summary with normalized location
+        # Build summary with normalized location and office size
         location_str = ""
         if normalized_city and normalized_state:
             location_str = f" in {normalized_city}, {normalized_state}"
@@ -348,24 +471,74 @@ def create_opportunity_event(
         elif normalized_state:
             location_str = f" in {normalized_state}"
 
-        summary = f"{agency_name} is seeking a new lease{location_str}: {title}"
+        size_str = ""
+        if aboa_sf_min and aboa_sf_max:
+            if aboa_sf_min == aboa_sf_max:
+                size_str = f" ({aboa_sf_min:,} sq ft)"
+            else:
+                size_str = f" ({aboa_sf_min:,}-{aboa_sf_max:,} sq ft)"
+        elif aboa_sf_min:
+            size_str = f" ({aboa_sf_min:,} sq ft)"
 
-        # Build key facts with normalized location
+        summary = f"{agency_name} is seeking a new lease{location_str}{size_str}: {title}"
+
+        # Build key facts with all structured data
         key_facts_dict = {}
 
         if normalized_city:
             key_facts_dict["city"] = normalized_city
         if normalized_state:
             key_facts_dict["state"] = normalized_state
+
+        # Store office size in key_facts
+        if aboa_sf_min:
+            key_facts_dict["aboa_sf_min"] = aboa_sf_min
+        if aboa_sf_max:
+            key_facts_dict["aboa_sf_max"] = aboa_sf_max
+
+        # Store award amount if awarded
+        if award_amount:
+            key_facts_dict["amount"] = f"${award_amount:,.2f}"
+
+        # Store everything else in 'other' dict
+        other_facts = {}
+
         if solicitation_number:
-            key_facts_dict["solicitation_number"] = solicitation_number
+            other_facts["solicitation_number"] = solicitation_number
         if response_deadline:
-            key_facts_dict["response_deadline"] = response_deadline
+            other_facts["response_deadline"] = response_deadline
+        if notice_type:
+            other_facts["notice_type"] = notice_type
+        if status:
+            other_facts["opportunity_status"] = status
+        if delineated_area:
+            other_facts["delineated_area"] = delineated_area
+        if lease_term_years:
+            other_facts["lease_term_years"] = lease_term_years
+        if firm_term_years:
+            other_facts["firm_term_years"] = firm_term_years
+        if sub_agency:
+            other_facts["sub_agency"] = sub_agency
+        if awardee_name:
+            other_facts["awardee_name"] = awardee_name
+        if parking_spaces:
+            other_facts["parking_spaces"] = parking_spaces
+        if parking_reserved:
+            other_facts["parking_reserved"] = parking_reserved
+        if tenant_improvement_allowance:
+            other_facts["tenant_improvement_allowance"] = tenant_improvement_allowance
+        if facility_security_level:
+            other_facts["facility_security_level"] = facility_security_level
+        if is_aaap:
+            other_facts["is_aaap"] = is_aaap
+
+        if other_facts:
+            key_facts_dict["other"] = other_facts
 
         # Add NAICS code if available
         naics_code = opportunity.get("naics_code")
-        if naics_code:
-            key_facts_dict["naics_code"] = naics_code
+        if naics_code and "other" in key_facts_dict:
+            key_facts_dict["other"]["naics_code"] = naics_code
 
         # Create dynamic signals
         dynamic_signals = [
@@ -400,7 +573,7 @@ def create_opportunity_event(
             entity_type="government_agency",
             entity_metadata=entity_metadata,
             event_type="expansion",  # New lease = expansion
-            temporal_status="planned",  # Government seeking space = planned future move
+            temporal_status=temporal_status,  # Mapped from opportunity status
             summary=summary,
             key_facts=KeyFact(**key_facts_dict) if key_facts_dict else None,
             source_url=source_url,
@@ -410,8 +583,8 @@ def create_opportunity_event(
             dynamic_signals=dynamic_signals
         )
 
-        logger.info(f"Created event for {entity_name_raw}: {title}")
-        return event
+        logger.info(f"Created event for {entity_name_raw} ({temporal_status}): {title}")
+        return (event, opportunity_id)
 
     except Exception as e:
         logger.error(f"Error creating event for opportunity: {e}", exc_info=True)
@@ -444,12 +617,15 @@ def process_government_opportunities_document(
         logger.info(f"Processing {len(opportunities)} opportunities from structured JSON")
 
         events = []
+        opportunity_ids = []
         for idx, opportunity_data in enumerate(opportunities, 1):
             logger.info(f"Processing opportunity {idx}/{len(opportunities)}: {opportunity_data.get('opportunity_id', 'unknown')}")
 
-            event = create_opportunity_event(opportunity_data, file_path)
-            if event:
+            result = create_opportunity_event(opportunity_data, file_path)
+            if result:
+                event, opportunity_id = result
                 events.append(event)
+                opportunity_ids.append(opportunity_id)
 
         logger.info(
             f"Processed {len(opportunities)} opportunities, "
@@ -460,11 +636,13 @@ def process_government_opportunities_document(
             "status": "completed",
             "opportunities_processed": len(opportunities),
             "events_created": len(events),
-            "events": events
+            "events": events,
+            "opportunity_ids": opportunity_ids  # For upsert logic
         }
 
     # No structured opportunities found - signal to use LLM extraction
     return {
         "status": "no_structured_data",
-        "events": []
+        "events": [],
+        "opportunity_ids": []
     }

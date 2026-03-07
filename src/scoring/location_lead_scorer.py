@@ -78,9 +78,10 @@ class LocationLeadScorer:
         Returns:
             LocationLead record or None if no events in this state
         """
-        # Get all events for this entity in this state
+        # Get all non-expired events for this entity
         events = db.query(Event).filter(
-            Event.entity_id == entity.id
+            Event.entity_id == entity.id,
+            Event.expired_at.is_(None)  # Exclude expired government opportunities
         ).all()
 
         # Filter events by state (check key_facts.state)

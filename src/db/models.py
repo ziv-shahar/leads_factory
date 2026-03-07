@@ -116,6 +116,10 @@ class Event(Base):
     extraction_confidence = Column(Float, nullable=False, default=0.0)  # 0.0 - 1.0
     raw_ref = Column(String(1024), nullable=False)  # Reference to raw file
 
+    # Government opportunity tracking (for upsert logic)
+    opportunity_id = Column(String(255), nullable=True, index=True)  # Unique ID from SAM.gov
+    expired_at = Column(DateTime, nullable=True)  # When response_deadline passed (soft delete)
+
     # Relationships
     entity = relationship("Entity", back_populates="events")
 
@@ -123,6 +127,8 @@ class Event(Base):
         Index('idx_events_entity_id', 'entity_id'),
         Index('idx_events_event_type', 'event_type'),
         Index('idx_events_event_time', 'event_time'),
+        Index('idx_events_opportunity_id', 'opportunity_id'),
+        Index('idx_events_expired_at', 'expired_at', postgresql_where=text('expired_at IS NULL')),
     )
 
 

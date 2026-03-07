@@ -79,8 +79,11 @@ class LeadScorer:
         Returns:
             LeadCurrent record
         """
-        # Get all events for this entity
-        all_events = db.query(Event).filter(Event.entity_id == entity.id).all()
+        # Get all non-expired events for this entity
+        all_events = db.query(Event).filter(
+            Event.entity_id == entity.id,
+            Event.expired_at.is_(None)  # Exclude expired government opportunities
+        ).all()
 
         # Filter out "completed" events - we only want planned/in_progress for predictive leads
         # Skip events that already happened (not predictive of future space needs)

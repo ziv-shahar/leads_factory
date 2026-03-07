@@ -245,6 +245,25 @@ class SupabaseSession:
                             if not hasattr(instance, key) or getattr(instance, key) is None:
                                 setattr(instance, key, value)
 
+                elif instance.__class__.__name__ == 'Event':
+                    # Handle duplicate opportunity_id constraint for government opportunities
+                    if hasattr(instance, 'opportunity_id') and instance.opportunity_id:
+                        # Update existing event by opportunity_id
+                        result = self.supabase.table(table_name).update(data).eq('opportunity_id', instance.opportunity_id).execute()
+                        if result.data and len(result.data) > 0:
+                            returned_row = result.data[0]
+                            if 'id' in returned_row:
+                                instance.id = returned_row['id']
+                            for key, value in returned_row.items():
+                                if not hasattr(instance, key) or getattr(instance, key) is None:
+                                    setattr(instance, key, value)
+                        else:
+                            # Shouldn't happen, but re-raise if we can't find it
+                            raise
+                    else:
+                        # Not a government opportunity, re-raise the error
+                        raise
+
                 elif instance.__class__.__name__ == 'Entity':
                     # Handle duplicate domain constraint for Entity
                     # Query existing entity by domain and use it instead

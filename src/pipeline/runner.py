@@ -170,7 +170,15 @@ class PipelineRunner:
         else:
             self._run_sequential(file_entries)
 
-        # Phase 3: Ensure all entities have location leads
+        # Phase 3: Expire past-deadline government opportunities
+        print("\n" + "="*80)
+        print("EXPIRING PAST-DEADLINE OPPORTUNITIES")
+        print("="*80)
+        with get_db() as db:
+            self._expire_past_deadline_opportunities(db)
+            db.commit()
+
+        # Phase 4: Ensure all entities have location leads
         print("\n" + "="*80)
         print("ENSURING ALL ENTITIES HAVE LOCATION LEADS")
         print("="*80)
@@ -178,7 +186,7 @@ class PipelineRunner:
             self._ensure_all_entities_have_location_leads(db)
             db.commit()
 
-        # Phase 4: Print summary
+        # Phase 5: Print summary
         print("\n" + "="*80)
         print("PIPELINE SUMMARY")
         print("="*80)
@@ -737,6 +745,8 @@ class PipelineRunner:
 
         # Process events for each opportunity found
         events = result.get('events', [])
+        opportunity_ids = result.get('opportunity_ids', [])
+
         if not events:
             raw_event.status = "PROCESSED"
             _print(f"⊙ No events created from {result.get('opportunities_processed', 0)} opportunities")
@@ -749,10 +759,15 @@ class PipelineRunner:
         processed_count = 0
         failed_events = []
 
-        for idx, normalized_event in enumerate(events, 1):
+        # Zip events with their opportunity_ids
+        events_with_ids = list(zip(events, opportunity_ids)) if opportunity_ids else [(e, None) for e in events]
+
+        for idx, (normalized_event, opportunity_id) in enumerate(events_with_ids, 1):
             _print(f"\n  Opportunity {idx}/{len(events)}:")
             _print(f"  → Entity: {normalized_event.entity_name_raw}")
             _print(f"  → Confidence: {normalized_event.extraction_confidence:.2f}")
+            if opportunity_id:
+                _print(f"  → Opportunity ID: {opportunity_id}")
 
             # Check minimum confidence threshold
             if normalized_event.extraction_confidence < MIN_CONFIDENCE:
@@ -761,7 +776,7 @@ class PipelineRunner:
 
             # Process this event with error handling
             try:
-                self._process_event(db, normalized_event, file_path, "local_bucket", quiet=quiet)
+                self._process_event(db, normalized_event, file_path, "local_bucket", quiet=quiet, opportunity_id=opportunity_id)
                 processed_count += 1
             except Exception as e:
                 error_msg = f"Failed to process event for {normalized_event.entity_name_canonical}: {str(e)}"
@@ -802,8 +817,18 @@ class PipelineRunner:
         _print(f"\n✓ {success_msg}")
         return 'processed'
 
-    def _process_event(self, db: Session, normalized_event, file_path: str, source: str, quiet: bool = False):
-        """Process a single event for an entity."""
+    def _process_event(self, db: Session, normalized_event, file_path: str, source: str, quiet: bool = False, opportunity_id: str = None):
+        """
+        Process a single event for an entity.
+
+        Args:
+            db: Database session
+            normalized_event: Extracted event data
+            file_path: Source file path
+            source: Source identifier (e.g., "local_bucket")
+            quiet: Suppress print output
+            opportunity_id: Optional government opportunity ID for upsert logic
+        """
         def _print(msg):
             """Conditional print based on quiet mode."""
             if not quiet:
@@ -904,15 +929,21 @@ class PipelineRunner:
                 "summary": normalized_event.summary,
                 "key_facts": normalized_event.key_facts.model_dump() if normalized_event.key_facts else {},
                 "source_url": normalized_event.source_url,
-                "missing_fields": normalized_event.missing_fields
+                "missing_fields": normalized_event.missing_fields,
+                "temporal_status": normalized_event.temporal_status  # Add temporal_status to strict
             },
             dynamic_signals=[s.model_dump() for s in normalized_event.dynamic_signals],
             extraction_confidence=normalized_event.extraction_confidence,
-            raw_ref=file_path
+            raw_ref=file_path,
+            opportunity_id=opportunity_id  # Government opportunity ID for upsert
         )
         db.add(event)
         db.flush()
-        _print(f"✓ Event persisted: {event.id}")
+
+        if opportunity_id:
+            _print(f"✓ Event upserted (opportunity_id={opportunity_id}): {event.id}")
+        else:
+            _print(f"✓ Event persisted: {event.id}")
 
         # Score and materialize lead
         _print(f"  → Scoring lead for {canonical_name}...")
@@ -959,6 +990,87 @@ class PipelineRunner:
 
         # Fallback: return None
         return None
+
+    def _expire_past_deadline_opportunities(self, db: Session):
+        """
+        Mark government opportunities as expired if their response_deadline has passed.
+
+        For each expired opportunity:
+        1. Set expired_at timestamp on the event
+        2. Re-score the entity's location leads (expired events excluded from scoring)
+
+        Soft delete approach - keeps historical data but excludes from active scoring.
+        """
+        from datetime import datetime
+
+        # Query events with response_deadline in the past
+        # We need to check strict->key_facts->other->response_deadline
+        all_govt_events = db.query(Event).filter(Event.opportunity_id.isnot(None)).all()
+
+        expired_count = 0
+        re_scored_entities = set()
+
+        for event in all_govt_events:
+            # Skip if already marked expired
+            if event.expired_at:
+                continue
+
+            # Extract response_deadline from strict JSON
+            key_facts = event.strict.get('key_facts', {})
+            other_facts = key_facts.get('other', {})
+            response_deadline_str = other_facts.get('response_deadline')
+
+            if not response_deadline_str:
+                continue
+
+            # Parse deadline
+            try:
+                # Handle ISO format like "2026-03-24T16:00:00"
+                if 'T' in response_deadline_str:
+                    deadline = datetime.fromisoformat(response_deadline_str.replace('Z', '+00:00'))
+                else:
+                    deadline = datetime.strptime(response_deadline_str, "%Y-%m-%d")
+
+                # Check if expired
+                if deadline < datetime.utcnow():
+                    # Mark as expired
+                    event.expired_at = datetime.utcnow()
+                    expired_count += 1
+                    re_scored_entities.add(event.entity_id)
+
+                    self.logger.info(f"Expired opportunity {event.opportunity_id}: deadline was {deadline}")
+
+            except Exception as e:
+                self.logger.warning(f"Failed to parse response_deadline '{response_deadline_str}' for opportunity {event.opportunity_id}: {e}")
+                continue
+
+        print(f"Marked {expired_count} opportunities as expired (deadline passed)")
+
+        # Re-score affected entities
+        if re_scored_entities:
+            print(f"Re-scoring {len(re_scored_entities)} entities affected by expired opportunities...")
+
+            for entity_id in re_scored_entities:
+                try:
+                    entity = db.query(Entity).filter(Entity.id == entity_id).first()
+                    if entity:
+                        # Re-score entity-level lead
+                        self.scorer.score_and_materialize_lead(db, entity)
+
+                        # Re-score all location leads for this entity
+                        location_leads = db.query(LocationLead).filter(LocationLead.entity_id == entity_id).all()
+                        for location_lead in location_leads:
+                            self.location_scorer.score_and_materialize_location_lead(
+                                db=db,
+                                entity=entity,
+                                state=location_lead.state,
+                                city=location_lead.city
+                            )
+
+                except Exception as e:
+                    self.logger.error(f"Failed to re-score entity {entity_id}: {e}", exc_info=True)
+
+            print(f"✓ Re-scored {len(re_scored_entities)} entities")
 
     def _ensure_all_entities_have_location_leads(self, db: Session):
         """
