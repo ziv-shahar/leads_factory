@@ -62,7 +62,26 @@ export interface Event {
 
 export interface EventStrict {
   summary?: string
-  key_facts?: string[]
+  key_facts?: string[] | {
+    // Direct opportunity properties
+    aboa_sf_min?: number
+    aboa_sf_max?: number
+    amount?: string
+
+    // Nested properties under "other" for government opportunities
+    other?: {
+      solicitation_number?: string
+      response_deadline?: string
+      opportunity_status?: string
+      notice_type?: string
+      delineated_area?: string
+      lease_term_years?: number
+      firm_term_years?: number
+      parking_spaces?: number
+      facility_security_level?: string
+      sub_agency?: string
+    }
+  }
   source_url?: string
   state?: string
   city?: string
