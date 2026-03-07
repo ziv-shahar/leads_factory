@@ -1,7 +1,7 @@
 """SQLAlchemy models for lead intelligence pipeline."""
 from datetime import datetime
 from sqlalchemy import (
-    Column, String, Integer, Float, DateTime, ForeignKey, Text, UniqueConstraint, Index
+    Column, String, Integer, Float, DateTime, ForeignKey, Text, UniqueConstraint, Index, text
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.declarative import declarative_base
