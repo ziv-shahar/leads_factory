@@ -76,12 +76,27 @@ export async function GET(request: Request) {
         // Only fetch events for government agencies
         if (lead.entity?.entity_type === 'government_agency') {
           try {
-            const { data: events } = await supabase
+            const { data: events, error: eventError } = await supabase
               .from('events')
               .select('*')
               .eq('entity_id', lead.entity_id)
-              .order('created_at', { ascending: false })
+              .order('ingest_time', { ascending: false })
               .limit(1)
+
+            if (eventError) {
+              console.error(`Error fetching event for lead ${lead.id}, entity ${lead.entity_id}:`, eventError)
+              return lead
+            }
+
+            if (events && events.length > 0) {
+              console.log(`Found event for lead ${lead.id}:`, {
+                event_id: events[0].id,
+                has_key_facts: !!events[0].strict?.key_facts,
+                key_facts_type: Array.isArray(events[0].strict?.key_facts) ? 'array' : typeof events[0].strict?.key_facts
+              })
+            } else {
+              console.log(`No events found for lead ${lead.id}, entity ${lead.entity_id}`)
+            }
 
             return {
               ...lead,
@@ -95,6 +110,8 @@ export async function GET(request: Request) {
         return lead
       })
     )
+
+    console.log(`Returning ${leadsWithEventData.length} leads, ${leadsWithEventData.filter(l => l.latest_event).length} with events`)
 
     const response: LeadsListResponse = {
       leads: leadsWithEventData,
