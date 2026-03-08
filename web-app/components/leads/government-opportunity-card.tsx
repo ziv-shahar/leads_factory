@@ -102,80 +102,113 @@ export function GovernmentOpportunityCard({ lead, opportunityData, className }: 
             </p>
           </div>
 
-          {/* 3-Column Metrics */}
-          <div className="grid grid-cols-3 gap-3 mb-5">
-            {/* Deadline */}
-            <div className="flex flex-col items-center text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50">
-              <Calendar className={cn(
-                "h-5 w-5 mb-2",
-                isUrgent && "text-red-600 dark:text-red-400",
-                urgency === 'warning' && "text-amber-600 dark:text-amber-400",
-                urgency === 'normal' && "text-blue-600 dark:text-blue-400",
-                isExpired && "text-gray-400 dark:text-gray-500"
-              )} />
-              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-1">DEADLINE</p>
-              {deadlineInfo ? (
-                <>
-                  <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
+          {/* Deadline - Prominent Display */}
+          {deadlineInfo && (
+            <div className={cn(
+              "flex items-center gap-3 p-4 rounded-lg mb-4 border-2",
+              isUrgent && "bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-900/20 dark:to-pink-900/20 border-red-300 dark:border-red-700",
+              urgency === 'warning' && "bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-amber-300 dark:border-amber-700",
+              urgency === 'normal' && "bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200 dark:border-blue-700",
+              isExpired && "bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-700"
+            )}>
+              <div className={cn(
+                "w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm",
+                isUrgent && "bg-red-500 dark:bg-red-600",
+                urgency === 'warning' && "bg-amber-500 dark:bg-amber-600",
+                urgency === 'normal' && "bg-blue-500 dark:bg-blue-600",
+                isExpired && "bg-gray-400 dark:bg-gray-600"
+              )}>
+                <Calendar className="h-5 w-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className={cn(
+                  "text-xs font-semibold uppercase tracking-wide mb-0.5",
+                  isUrgent && "text-red-600 dark:text-red-400",
+                  urgency === 'warning' && "text-amber-600 dark:text-amber-400",
+                  urgency === 'normal' && "text-blue-600 dark:text-blue-400",
+                  isExpired && "text-gray-500 dark:text-gray-400"
+                )}>
+                  Response Deadline
+                </p>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-base font-bold text-gray-900 dark:text-white">
                     {deadlineInfo.formatted}
                   </p>
                   <p className={cn(
-                    "text-xs font-semibold mt-1",
+                    "text-sm font-bold",
                     isUrgent && "text-red-600 dark:text-red-400",
                     urgency === 'warning' && "text-amber-600 dark:text-amber-400",
                     urgency === 'normal' && "text-blue-600 dark:text-blue-400",
-                    isExpired && "text-gray-400"
+                    isExpired && "text-gray-500 dark:text-gray-400"
                   )}>
                     ({deadlineInfo.countdown})
                   </p>
-                </>
-              ) : (
-                <p className="text-sm font-bold text-gray-400 dark:text-gray-500">TBD</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Optional Metrics - Only show if not TBD */}
+          {(size !== 'TBD' || budget !== 'TBD') && (
+            <div className="flex gap-3 mb-4">
+              {size !== 'TBD' && (
+                <div className="flex-1 flex items-center gap-2 p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800/30">
+                  <Ruler className="h-4 w-4 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-purple-600 dark:text-purple-400 font-semibold">Size</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white truncate">
+                      {size}
+                    </p>
+                  </div>
+                </div>
+              )}
+              {budget !== 'TBD' && (
+                <div className="flex-1 flex items-center gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800/30">
+                  <DollarSign className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-green-600 dark:text-green-400 font-semibold">Budget</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white truncate">
+                      {budget}
+                    </p>
+                  </div>
+                </div>
               )}
             </div>
+          )}
 
-            {/* Size */}
-            <div className="flex flex-col items-center text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50">
-              <Ruler className="h-5 w-5 mb-2 text-purple-600 dark:text-purple-400" />
-              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-1">SIZE</p>
-              <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
-                {size}
-              </p>
-            </div>
-
-            {/* Budget */}
-            <div className="flex flex-col items-center text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-900/50">
-              <DollarSign className="h-5 w-5 mb-2 text-green-600 dark:text-green-400" />
-              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-1">BUDGET</p>
-              <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
-                {budget}
-              </p>
-            </div>
-          </div>
-
-          {/* Secondary Info */}
-          <div className="space-y-2 mb-4">
-            {/* Location */}
-            <div className="flex items-center gap-2 text-sm">
-              <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0" />
-              <span className="text-gray-600 dark:text-gray-300 font-medium truncate">
+          {/* Location - Prominent Display */}
+          <div className="mb-4">
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-900/30 dark:to-slate-900/30 border border-gray-200 dark:border-gray-700">
+              <MapPin className="h-4 w-4 text-gray-600 dark:text-gray-400 flex-shrink-0" />
+              <span className="text-sm text-gray-900 dark:text-white font-semibold truncate">
                 {location}
               </span>
             </div>
+          </div>
 
-            {/* Additional Details */}
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+          {/* Additional Details */}
+          {(opportunityData?.lease_term_years || opportunityData?.parking_spaces || opportunityData?.facility_security_level) && (
+            <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-gray-600 dark:text-gray-300 mb-4">
               {opportunityData?.lease_term_years && (
-                <span>📋 {opportunityData.lease_term_years} yr lease{opportunityData.firm_term_years ? ` (${opportunityData.firm_term_years} firm)` : ''}</span>
+                <div className="flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5 text-gray-400" />
+                  <span>{opportunityData.lease_term_years} yr lease{opportunityData.firm_term_years ? ` (${opportunityData.firm_term_years} firm)` : ''}</span>
+                </div>
               )}
               {opportunityData?.parking_spaces && (
-                <span>🚗 {opportunityData.parking_spaces} spaces</span>
+                <div className="flex items-center gap-1.5">
+                  <Building2 className="h-3.5 w-3.5 text-gray-400" />
+                  <span>{opportunityData.parking_spaces} spaces</span>
+                </div>
               )}
               {opportunityData?.facility_security_level && (
-                <span>🔒 Level {opportunityData.facility_security_level}</span>
+                <div className="flex items-center gap-1.5">
+                  <AlertCircle className="h-3.5 w-3.5 text-gray-400" />
+                  <span>Level {opportunityData.facility_security_level}</span>
+                </div>
               )}
             </div>
-          </div>
+          )}
 
           {/* Urgency Warning */}
           {isUrgent && !isExpired && (
