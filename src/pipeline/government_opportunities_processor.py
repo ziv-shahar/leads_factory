@@ -350,6 +350,67 @@ def is_office_space_relevant(opportunity: Dict[str, Any]) -> bool:
     return True
 
 
+def is_opportunity_actionable(opportunity: Dict[str, Any]) -> bool:
+    """
+    Filter out opportunities that are no longer actionable.
+
+    Returns False for:
+    - Already awarded contracts (Award Notice)
+    - Expired opportunities (response deadline passed)
+
+    Args:
+        opportunity: Opportunity dictionary
+
+    Returns:
+        True if opportunity is still actionable, False otherwise
+    """
+    from datetime import datetime
+
+    # FILTER 1: Skip awarded opportunities
+    status = opportunity.get("status", "").lower()
+    notice_type = opportunity.get("notice_type", "").lower()
+
+    if status == "awarded":
+        title = opportunity.get("title", "unknown")
+        logger.info(f"Skipping awarded opportunity: '{title}' (status=awarded)")
+        return False
+
+    if "award notice" in notice_type:
+        title = opportunity.get("title", "unknown")
+        logger.info(f"Skipping awarded opportunity: '{title}' (notice_type=Award Notice)")
+        return False
+
+    # FILTER 2: Skip expired opportunities (deadline passed)
+    response_deadline = opportunity.get("response_deadline")
+
+    if response_deadline:
+        try:
+            # Parse deadline - supports multiple formats
+            # Examples: "2026-03-08T15:00:00", "2026-03-08", "2026-03-08 15:00:00"
+            deadline_str = response_deadline.replace("T", " ").split("+")[0].strip()
+
+            # Try parsing with time
+            if " " in deadline_str:
+                deadline_dt = datetime.strptime(deadline_str, "%Y-%m-%d %H:%M:%S")
+            else:
+                # Date only - set to end of day
+                deadline_dt = datetime.strptime(deadline_str, "%Y-%m-%d")
+                deadline_dt = deadline_dt.replace(hour=23, minute=59, second=59)
+
+            # Check if deadline has passed
+            now = datetime.now()
+            if deadline_dt < now:
+                title = opportunity.get("title", "unknown")
+                logger.info(f"Skipping expired opportunity: '{title}' (deadline: {response_deadline})")
+                return False
+
+        except ValueError as e:
+            # If we can't parse the date, log warning but don't filter out
+            logger.warning(f"Could not parse response_deadline '{response_deadline}': {e}")
+
+    return True
+
+
 def map_status_to_temporal(status: str) -> str:
     """
     Map SAM.gov status to temporal_status.
@@ -395,8 +456,12 @@ def create_opportunity_event(
     from src.utils.location_utils import normalize_state, normalize_city
 
     try:
-        # FILTER: Skip non-office-space opportunities
+        # FILTER 1: Skip non-office-space opportunities
         if not is_office_space_relevant(opportunity):
+            return None
+
+        # FILTER 2: Skip non-actionable opportunities (awarded or expired)
+        if not is_opportunity_actionable(opportunity):
             return None
 
         # Extract opportunity_id for upsert
