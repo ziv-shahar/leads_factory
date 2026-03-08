@@ -103,25 +103,28 @@ export default function LeadDetailPage() {
   // Extract opportunity data from the first event (if it exists)
   const opportunityEvent = isGovernmentOpportunity && events.length > 0 ? events[0] : null
 
-  // Type guard: check if key_facts is an object (not array)
-  const keyFacts = opportunityEvent?.strict?.key_facts
-  const opportunityKeyFacts = keyFacts && !Array.isArray(keyFacts) ? keyFacts : null
+  // Type guard function to narrow key_facts union type
+  type KeyFactsObject = Exclude<NonNullable<Event['strict']>['key_facts'], string[]>
+  const isKeyFactsObject = (kf: any): kf is KeyFactsObject =>
+    kf != null && typeof kf === 'object' && !Array.isArray(kf)
 
-  const opportunityData: OpportunityData | undefined = opportunityKeyFacts ? {
-    solicitation_number: opportunityKeyFacts.other?.solicitation_number,
-    response_deadline: opportunityKeyFacts.other?.response_deadline,
-    opportunity_status: opportunityKeyFacts.other?.opportunity_status,
-    notice_type: opportunityKeyFacts.other?.notice_type,
-    aboa_sf_min: opportunityKeyFacts.aboa_sf_min,
-    aboa_sf_max: opportunityKeyFacts.aboa_sf_max,
-    amount: opportunityKeyFacts.amount,
-    delineated_area: opportunityKeyFacts.other?.delineated_area,
-    lease_term_years: opportunityKeyFacts.other?.lease_term_years,
-    firm_term_years: opportunityKeyFacts.other?.firm_term_years,
-    parking_spaces: opportunityKeyFacts.other?.parking_spaces,
-    facility_security_level: opportunityKeyFacts.other?.facility_security_level,
-    sub_agency: opportunityKeyFacts.other?.sub_agency,
-  } : undefined
+  const keyFacts = opportunityEvent?.strict?.key_facts
+  const opportunityData: OpportunityData | undefined =
+    keyFacts && isKeyFactsObject(keyFacts) ? {
+      solicitation_number: keyFacts.other?.solicitation_number,
+      response_deadline: keyFacts.other?.response_deadline,
+      opportunity_status: keyFacts.other?.opportunity_status,
+      notice_type: keyFacts.other?.notice_type,
+      aboa_sf_min: keyFacts.aboa_sf_min,
+      aboa_sf_max: keyFacts.aboa_sf_max,
+      amount: keyFacts.amount,
+      delineated_area: keyFacts.other?.delineated_area,
+      lease_term_years: keyFacts.other?.lease_term_years,
+      firm_term_years: keyFacts.other?.firm_term_years,
+      parking_spaces: keyFacts.other?.parking_spaces,
+      facility_security_level: keyFacts.other?.facility_security_level,
+      sub_agency: keyFacts.other?.sub_agency,
+    } : undefined
 
   const getStatusColor = (status: string) => {
     switch (status) {
