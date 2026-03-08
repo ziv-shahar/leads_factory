@@ -90,9 +90,11 @@ export async function GET(request: Request) {
             }
 
             // Prioritize events matching this lead's state
+            // NOTE: Location leads are created based on strict.key_facts.state
+            // (see src/scoring/location_lead_scorer.py line 91)
             const events = (allEvents || []).sort((a, b) => {
-              const aState = a.strict?.state || a.strict?.location?.state
-              const bState = b.strict?.state || b.strict?.location?.state
+              const aState = a.strict?.key_facts?.state
+              const bState = b.strict?.key_facts?.state
 
               const aMatchesState = aState === lead.state ? 1 : 0
               const bMatchesState = bState === lead.state ? 1 : 0
@@ -113,8 +115,8 @@ export async function GET(request: Request) {
             if (latestEvent) {
               console.log(`Found event for lead ${lead.id} (${lead.state}):`, {
                 event_id: latestEvent.id,
-                event_state: latestEvent.strict?.state || latestEvent.strict?.location?.state,
-                matches_state: (latestEvent.strict?.state || latestEvent.strict?.location?.state) === lead.state,
+                event_state: latestEvent.strict?.key_facts?.state,
+                matches_state: latestEvent.strict?.key_facts?.state === lead.state,
                 has_key_facts: !!latestEvent.strict?.key_facts,
                 key_facts_type: Array.isArray(latestEvent.strict?.key_facts) ? 'array' : typeof latestEvent.strict?.key_facts
               })

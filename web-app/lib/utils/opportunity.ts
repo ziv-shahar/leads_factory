@@ -129,7 +129,23 @@ export function formatSquareFootage(min?: number, max?: number): string {
  */
 export function formatBudget(amount?: string): string {
   if (!amount) return 'TBD'
-  return amount
+
+  // If already formatted (has $ or commas), return as-is
+  if (amount.includes('$') || amount.includes(',')) {
+    return amount
+  }
+
+  // Try to parse as number and format as currency
+  const numericAmount = parseFloat(amount)
+  if (isNaN(numericAmount)) {
+    return amount // Return original if not a number
+  }
+
+  // Format as currency with commas and 2 decimal places
+  return `$${numericAmount.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}`
 }
 
 /**
