@@ -62,33 +62,17 @@ export async function GET(
     }
 
     // Filter events to only show those matching this lead's state
-    console.log(`\n=== FILTERING EVENTS FOR LEAD ${lead.id} ===`)
-    console.log(`Lead state: "${lead.state}"`)
-    console.log(`Total events for entity: ${allEvents?.length || 0}`)
-
+    // NOTE: Location leads are created based on strict.key_facts.state
+    // (see src/scoring/location_lead_scorer.py line 91)
     const events = (allEvents || []).filter(event => {
-      const eventState = event.strict?.state || event.strict?.location?.state
-      const matches = eventState === lead.state
-
-      // Debug: log first 5 events to understand the data
-      if (allEvents && allEvents.indexOf(event) < 5) {
-        console.log(`Event ${allEvents.indexOf(event)}: eventState="${eventState}", matches=${matches}`)
-        console.log(`  - strict.state: ${event.strict?.state}`)
-        console.log(`  - strict.location?.state: ${event.strict?.location?.state}`)
-        console.log(`  - summary: ${event.strict?.summary?.substring(0, 80)}`)
-      }
-
-      // Only include events for this specific state
-      return matches
+      const eventState = event.strict?.key_facts?.state
+      return eventState === lead.state
     }).sort((a, b) => {
       // Sort by event time (most recent first)
       const aTime = a.event_time ? new Date(a.event_time).getTime() : 0
       const bTime = b.event_time ? new Date(b.event_time).getTime() : 0
       return bTime - aTime
     })
-
-    console.log(`Filtered to ${events.length} events matching state "${lead.state}"`)
-    console.log(`=== END FILTERING ===\n`)
 
     const response: LeadDetailResponse = {
       lead,
