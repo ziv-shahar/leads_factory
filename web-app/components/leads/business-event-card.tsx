@@ -113,106 +113,88 @@ export function BusinessEventCard({ lead, className }: BusinessEventCardProps) {
         )}
       >
         {/* Header */}
-        <div className="px-6 pt-6 pb-4">
-          <div className="flex items-start justify-between gap-4 mb-4">
-            <div className="flex items-start gap-3 flex-1 min-w-0">
-              {/* Dynamic Event Icon */}
-              <div className={cn(
-                'w-12 h-12 rounded-xl bg-gradient-to-br flex items-center justify-center text-white flex-shrink-0',
-                'group-hover:scale-110 transition-all duration-300 shadow-md',
-                config.gradient
-              )}>
-                <Icon className="h-6 w-6" />
-              </div>
+        <div className="px-6 pt-6 pb-4 border-b border-gray-100 dark:border-gray-700">
+          <div className="flex items-start gap-4 mb-3">
+            {/* Dynamic Event Icon */}
+            <div className={cn(
+              'w-14 h-14 rounded-xl bg-gradient-to-br flex items-center justify-center text-white flex-shrink-0',
+              'group-hover:scale-110 group-hover:rotate-3 transition-all duration-300 shadow-lg',
+              config.gradient
+            )}>
+              <Icon className="h-7 w-7" />
+            </div>
 
-              {/* Company Info */}
-              <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-gray-900 dark:text-white text-lg mb-1 truncate group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+            {/* Company Info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <h3 className="font-bold text-gray-900 dark:text-white text-xl truncate group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
                   {entity.canonical_name}
                 </h3>
-                {entity.domain && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate flex items-center gap-1">
-                    <Globe className="h-3 w-3" />
-                    <span>{entity.domain}</span>
-                  </p>
-                )}
+                {/* Event Type Badge */}
+                <div className={cn(
+                  'inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wide',
+                  'bg-gradient-to-r shadow-sm flex-shrink-0',
+                  config.gradient,
+                  'text-white'
+                )}>
+                  {displayLabel}
+                </div>
               </div>
+              {entity.domain && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 truncate flex items-center gap-1.5 mb-2">
+                  <Globe className="h-3.5 w-3.5" />
+                  <span>{entity.domain}</span>
+                </p>
+              )}
+              {/* Event Summary */}
+              <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2 leading-relaxed">
+                {eventType === 'expansion' && `Expanding operations in ${lead.city ? `${lead.city}, ` : ''}${lead.state}`}
+                {eventType === 'funding_round' && 'Recent funding round announced'}
+                {eventType === 'partnership' && 'New strategic partnership formed'}
+                {eventType === 'product_launch' && 'New product or service launched'}
+                {eventType === 'hiring_surge' && 'Actively hiring and growing team'}
+                {eventType === 'acquisition' && 'Acquisition or merger activity'}
+                {eventType === 'leadership_change' && 'Leadership team expansion'}
+                {eventType === 'award_recognition' && 'Award or recognition received'}
+                {!EVENT_TYPE_CONFIG[eventType] && 'Business activity detected'}
+              </p>
             </div>
-
-            {/* Event Type Badge */}
-            <div className={cn(
-              'inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide',
-              'bg-gradient-to-r shadow-sm flex-shrink-0',
-              config.gradient,
-              'text-white'
-            )}>
-              {displayLabel}
-            </div>
-          </div>
-
-          {/* Event Summary */}
-          <div className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
-            {eventType === 'expansion' && `Expanding operations in ${lead.city ? `${lead.city}, ` : ''}${lead.state}`}
-            {eventType === 'funding_round' && 'Recent funding round announced'}
-            {eventType === 'partnership' && 'New strategic partnership formed'}
-            {eventType === 'product_launch' && 'New product or service launched'}
-            {eventType === 'hiring_surge' && 'Actively hiring and growing team'}
-            {eventType === 'acquisition' && 'Acquisition or merger activity'}
-            {eventType === 'leadership_change' && 'Leadership team expansion'}
-            {eventType === 'award_recognition' && 'Award or recognition received'}
-            {!EVENT_TYPE_CONFIG[eventType] && 'Business activity detected'}
           </div>
         </div>
 
-        {/* Metrics Grid */}
+        {/* Company Details */}
         <div className="px-6 pb-5">
-          <div className="grid grid-cols-3 gap-3 mb-4">
-            {/* Location */}
-            <div className="flex flex-col items-center text-center p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-              <MapPin className="h-4 w-4 mb-1.5 text-blue-600 dark:text-blue-400" />
-              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-0.5">Location</p>
-              <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
+          {/* Location - Prominent Display */}
+          <div className="flex items-center gap-2 mb-4 p-3 rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-100 dark:border-blue-800/30">
+            <div className="w-9 h-9 rounded-lg bg-blue-500 dark:bg-blue-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+              <MapPin className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold uppercase tracking-wide">Location</p>
+              <p className="text-sm font-bold text-gray-900 dark:text-white">
                 {lead.city ? `${lead.city}, ${lead.state}` : lead.state}
               </p>
-            </div>
-
-            {/* Events */}
-            <div className="flex flex-col items-center text-center p-3 rounded-lg bg-green-50 dark:bg-green-900/20">
-              <TrendingUp className="h-4 w-4 mb-1.5 text-green-600 dark:text-green-400" />
-              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-0.5">Signals</p>
-              <p className="text-sm font-bold text-gray-900 dark:text-white">
-                {lead.event_count}
-              </p>
-            </div>
-
-            {/* Last Activity */}
-            <div className="flex flex-col items-center text-center p-3 rounded-lg bg-orange-50 dark:bg-orange-900/20">
-              <Calendar className="h-4 w-4 mb-1.5 text-orange-600 dark:text-orange-400" />
-              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-0.5">Activity</p>
-              {lead.last_event_date ? (
-                <p className="text-xs font-bold text-gray-900 dark:text-white leading-tight">
-                  {formatDistanceToNow(new Date(lead.last_event_date), { addSuffix: false })}
-                </p>
-              ) : (
-                <p className="text-xs font-bold text-gray-400">N/A</p>
-              )}
             </div>
           </div>
 
           {/* Company Metadata */}
           {(entity.entity_metadata?.industry || entity.entity_metadata?.employee_count) && (
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400 mb-4">
+            <div className="flex flex-col gap-2 mb-4">
               {entity.entity_metadata.industry && (
-                <span className="flex items-center gap-1">
-                  <Building2 className="h-3 w-3" />
-                  {entity.entity_metadata.industry}
-                </span>
+                <div className="flex items-center gap-2 text-sm">
+                  <Building2 className="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                  <span className="text-gray-700 dark:text-gray-300 font-medium">
+                    {entity.entity_metadata.industry}
+                  </span>
+                </div>
               )}
               {entity.entity_metadata.employee_count && (
-                <span className="flex items-center gap-1">
-                  <Users className="h-3 w-3" />
-                  {entity.entity_metadata.employee_count}+ employees
-                </span>
+                <div className="flex items-center gap-2 text-sm">
+                  <Users className="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                  <span className="text-gray-700 dark:text-gray-300 font-medium">
+                    {entity.entity_metadata.employee_count}+ employees
+                  </span>
+                </div>
               )}
             </div>
           )}
