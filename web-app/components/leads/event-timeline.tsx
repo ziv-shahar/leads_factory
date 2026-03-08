@@ -86,7 +86,11 @@ export function EventTimeline({ events, className }: EventTimelineProps) {
           const isExpanded = expandedEvents.has(event.id)
           const hasDetails =
             event.strict.summary ||
-            (event.strict.key_facts && event.strict.key_facts.length > 0) ||
+            (event.strict.key_facts && (
+              Array.isArray(event.strict.key_facts)
+                ? event.strict.key_facts.length > 0
+                : Object.keys(event.strict.key_facts).length > 0
+            )) ||
             (event.dynamic_signals && event.dynamic_signals.length > 0)
 
           return (
@@ -181,7 +185,7 @@ export function EventTimeline({ events, className }: EventTimelineProps) {
                       {isExpanded && (
                         <div className="mt-4 space-y-4 border-t border-gray-100 dark:border-gray-700 pt-4">
                           {/* Key Facts */}
-                          {event.strict.key_facts && event.strict.key_facts.length > 0 && (
+                          {event.strict.key_facts && Array.isArray(event.strict.key_facts) && event.strict.key_facts.length > 0 && (
                             <div>
                               <h5 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
                                 Key Facts
