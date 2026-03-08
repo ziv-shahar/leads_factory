@@ -61,25 +61,19 @@ export async function GET(
       // Don't fail the whole request if events fail
     }
 
-    // Filter events to prioritize those related to this state
-    // Events with state info matching this lead's state come first
-    const events = (allEvents || []).sort((a, b) => {
-      const aState = a.strict?.state || a.strict?.location?.state
-      const bState = b.strict?.state || b.strict?.location?.state
-
-      const aMatchesState = aState === lead.state ? 1 : 0
-      const bMatchesState = bState === lead.state ? 1 : 0
-
-      // Events matching the state come first
-      if (aMatchesState !== bMatchesState) {
-        return bMatchesState - aMatchesState
-      }
-
-      // Then sort by event time
+    // Filter events to only show those matching this lead's state
+    const events = (allEvents || []).filter(event => {
+      const eventState = event.strict?.state || event.strict?.location?.state
+      // Only include events for this specific state
+      return eventState === lead.state
+    }).sort((a, b) => {
+      // Sort by event time (most recent first)
       const aTime = a.event_time ? new Date(a.event_time).getTime() : 0
       const bTime = b.event_time ? new Date(b.event_time).getTime() : 0
       return bTime - aTime
     })
+
+    console.log(`Lead ${lead.id} (${lead.state}): Showing ${events.length} of ${allEvents?.length || 0} total events`)
 
     const response: LeadDetailResponse = {
       lead,
