@@ -49,8 +49,19 @@ export default function LeadDetailPage() {
     setError(null)
 
     try {
-      const response = await fetch(`/api/location-leads/${params.id}`)
+      console.log(`[LEAD ${params.id}] Fetching from /api/location-leads/${params.id}`)
+      const response = await fetch(`/api/location-leads/${params.id}`, {
+        cache: 'no-store' // Disable caching to ensure fresh data
+      })
       const data = await response.json()
+
+      console.log(`[LEAD ${params.id}] Response:`, {
+        leadState: data.lead?.state,
+        leadCity: data.lead?.city,
+        totalEvents: data.events?.length,
+        firstEvent: data.events?.[0]?.strict?.summary?.substring(0, 80),
+        firstEventState: data.events?.[0]?.strict?.state
+      })
 
       if (response.ok) {
         setLead(data.lead)
