@@ -62,10 +62,24 @@ export async function GET(
     }
 
     // Filter events to only show those matching this lead's state
+    console.log(`\n=== FILTERING EVENTS FOR LEAD ${lead.id} ===`)
+    console.log(`Lead state: "${lead.state}"`)
+    console.log(`Total events for entity: ${allEvents?.length || 0}`)
+
     const events = (allEvents || []).filter(event => {
       const eventState = event.strict?.state || event.strict?.location?.state
+      const matches = eventState === lead.state
+
+      // Debug: log first 5 events to understand the data
+      if (allEvents && allEvents.indexOf(event) < 5) {
+        console.log(`Event ${allEvents.indexOf(event)}: eventState="${eventState}", matches=${matches}`)
+        console.log(`  - strict.state: ${event.strict?.state}`)
+        console.log(`  - strict.location?.state: ${event.strict?.location?.state}`)
+        console.log(`  - summary: ${event.strict?.summary?.substring(0, 80)}`)
+      }
+
       // Only include events for this specific state
-      return eventState === lead.state
+      return matches
     }).sort((a, b) => {
       // Sort by event time (most recent first)
       const aTime = a.event_time ? new Date(a.event_time).getTime() : 0
@@ -73,7 +87,8 @@ export async function GET(
       return bTime - aTime
     })
 
-    console.log(`Lead ${lead.id} (${lead.state}): Showing ${events.length} of ${allEvents?.length || 0} total events`)
+    console.log(`Filtered to ${events.length} events matching state "${lead.state}"`)
+    console.log(`=== END FILTERING ===\n`)
 
     const response: LeadDetailResponse = {
       lead,
