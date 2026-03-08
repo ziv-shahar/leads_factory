@@ -70,8 +70,34 @@ export async function GET(request: Request) {
       )
     }
 
+    // For government agencies, fetch the latest event to get opportunity data
+    const leadsWithEventData = await Promise.all(
+      (data || []).map(async (lead) => {
+        // Only fetch events for government agencies
+        if (lead.entity?.entity_type === 'government_agency') {
+          try {
+            const { data: events } = await supabase
+              .from('events')
+              .select('*')
+              .eq('entity_id', lead.entity_id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+
+            return {
+              ...lead,
+              latest_event: events?.[0] || null
+            }
+          } catch (err) {
+            console.error(`Error fetching event for lead ${lead.id}:`, err)
+            return lead
+          }
+        }
+        return lead
+      })
+    )
+
     const response: LeadsListResponse = {
-      leads: data || [],
+      leads: leadsWithEventData,
       total: count || 0,
       limit,
       offset,

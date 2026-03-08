@@ -172,6 +172,7 @@ export interface LeadStateHistory {
 
 export interface LeadWithEntity extends LocationLead {
   entity: Entity
+  latest_event?: Event | null  // Optional latest event for government opportunities
 }
 
 export interface LeadDetailView extends LeadWithEntity {
