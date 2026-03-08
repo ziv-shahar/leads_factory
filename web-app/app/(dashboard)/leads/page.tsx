@@ -6,7 +6,53 @@ import { LeadCardRouter } from '@/components/leads/lead-card-router'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Search, Download, Filter, Loader2 } from 'lucide-react'
-import type { LeadWithEntity, LeadStatus } from '@/types/database'
+import type { LeadWithEntity, LeadStatus, Event } from '@/types/database'
+import type { OpportunityData } from '@/lib/utils/opportunity'
+
+// Helper to extract opportunity data from event
+type KeyFactsObject = {
+  aboa_sf_min?: number
+  aboa_sf_max?: number
+  amount?: string
+  other?: {
+    solicitation_number?: string
+    response_deadline?: string
+    opportunity_status?: string
+    notice_type?: string
+    delineated_area?: string
+    lease_term_years?: number
+    firm_term_years?: number
+    parking_spaces?: number
+    facility_security_level?: string
+    sub_agency?: string
+  }
+}
+
+const isKeyFactsObject = (kf: any): kf is KeyFactsObject =>
+  kf != null && typeof kf === 'object' && !Array.isArray(kf)
+
+function extractOpportunityData(event: Event | null | undefined): OpportunityData | undefined {
+  if (!event?.strict?.key_facts) return undefined
+
+  const keyFacts = event.strict.key_facts
+  if (!isKeyFactsObject(keyFacts)) return undefined
+
+  return {
+    solicitation_number: keyFacts.other?.solicitation_number,
+    response_deadline: keyFacts.other?.response_deadline,
+    opportunity_status: keyFacts.other?.opportunity_status,
+    notice_type: keyFacts.other?.notice_type,
+    aboa_sf_min: keyFacts.aboa_sf_min,
+    aboa_sf_max: keyFacts.aboa_sf_max,
+    amount: keyFacts.amount,
+    delineated_area: keyFacts.other?.delineated_area,
+    lease_term_years: keyFacts.other?.lease_term_years,
+    firm_term_years: keyFacts.other?.firm_term_years,
+    parking_spaces: keyFacts.other?.parking_spaces,
+    facility_security_level: keyFacts.other?.facility_security_level,
+    sub_agency: keyFacts.other?.sub_agency,
+  }
+}
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState<LeadWithEntity[]>([])
@@ -213,9 +259,20 @@ export default function LeadsPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {leads.map(lead => (
-              <LeadCardRouter key={lead.id} lead={lead} />
-            ))}
+            {leads.map(lead => {
+              // Extract opportunity data from latest_event for government opportunities
+              const opportunityData = lead.entity.entity_type === 'government_agency'
+                ? extractOpportunityData(lead.latest_event)
+                : undefined
+
+              return (
+                <LeadCardRouter
+                  key={lead.id}
+                  lead={lead}
+                  opportunityData={opportunityData}
+                />
+              )
+            })}
           </div>
         </>
       )}
