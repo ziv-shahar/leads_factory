@@ -37,7 +37,7 @@ function extractOpportunityData(event: Event | null | undefined): OpportunityDat
   const keyFacts = event.strict.key_facts
   if (!isKeyFactsObject(keyFacts)) return undefined
 
-  return {
+  const data = {
     solicitation_number: keyFacts.other?.solicitation_number,
     response_deadline: keyFacts.other?.response_deadline,
     opportunity_status: keyFacts.other?.opportunity_status,
@@ -52,6 +52,19 @@ function extractOpportunityData(event: Event | null | undefined): OpportunityDat
     facility_security_level: keyFacts.other?.facility_security_level,
     sub_agency: keyFacts.other?.sub_agency,
   }
+
+  // Debug logging
+  console.log('📊 Extracted opportunity data:', {
+    event_id: event.id,
+    has_size: !!(data.aboa_sf_min || data.aboa_sf_max),
+    aboa_sf_min: data.aboa_sf_min,
+    aboa_sf_max: data.aboa_sf_max,
+    has_budget: !!data.amount,
+    amount: data.amount,
+    solicitation: data.solicitation_number
+  })
+
+  return data
 }
 
 export default function LeadsPage() {

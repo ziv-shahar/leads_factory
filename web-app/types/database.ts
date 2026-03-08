@@ -63,6 +63,10 @@ export interface Event {
 export interface EventStrict {
   summary?: string
   key_facts?: string[] | {
+    // Location fields (stored here for government opportunities)
+    state?: string  // 2-letter state code (e.g., "AL", "CA")
+    city?: string
+
     // Direct opportunity properties
     aboa_sf_min?: number
     aboa_sf_max?: number
@@ -90,6 +94,7 @@ export interface EventStrict {
     city?: string
     address?: string
   }
+  temporal_status?: string  // "planned" | "in_progress" | "completed"
   // Additional event-specific fields
   [key: string]: any
 }
