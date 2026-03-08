@@ -80,6 +80,11 @@ export function BusinessEventCard({ lead, className }: BusinessEventCardProps) {
   const config = EVENT_TYPE_CONFIG[eventType] || EVENT_TYPE_CONFIG.default
   const Icon = config.icon
 
+  // Display label - show entity type or "NEW LEAD" instead of "DEFAULT"
+  const displayLabel = eventType === 'default'
+    ? (entity.entity_type ? entity.entity_type.replace(/_/g, ' ') : 'NEW LEAD')
+    : eventType.replace(/_/g, ' ')
+
   // Determine status color
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -141,7 +146,7 @@ export function BusinessEventCard({ lead, className }: BusinessEventCardProps) {
               config.gradient,
               'text-white'
             )}>
-              {eventType.replace(/_/g, ' ')}
+              {displayLabel}
             </div>
           </div>
 
