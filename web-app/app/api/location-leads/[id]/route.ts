@@ -62,11 +62,19 @@ export async function GET(
     }
 
     // Filter events to only show those matching this lead's state
-    // NOTE: Location leads are created based on strict.key_facts.state
-    // (see src/scoring/location_lead_scorer.py line 91)
+    // NOTE: For government agencies, filter by key_facts.state
+    // For companies, show all events (they use different location fields)
+    const isGovernmentAgency = lead.entity?.entity_type === 'government_agency'
+
     const events = (allEvents || []).filter(event => {
-      const eventState = event.strict?.key_facts?.state
-      return eventState === lead.state
+      if (isGovernmentAgency) {
+        // For government opportunities: match key_facts.state
+        const eventState = event.strict?.key_facts?.state
+        return eventState === lead.state
+      } else {
+        // For companies: show all events (no state filtering)
+        return true
+      }
     }).sort((a, b) => {
       // Sort by event time (most recent first)
       const aTime = a.event_time ? new Date(a.event_time).getTime() : 0
