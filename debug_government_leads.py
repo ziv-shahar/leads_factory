@@ -89,11 +89,14 @@ def main():
 
                     if "other" in key_facts:
                         other_facts = key_facts["other"]
-                        print(f"\n    --- Opportunity Fields in strict.key_facts.other ---")
-                        print(f"    opportunity_status: {other_facts.get('opportunity_status', 'NOT FOUND')}")
-                        print(f"    notice_type: {other_facts.get('notice_type', 'NOT FOUND')}")
-                        print(f"    response_deadline: {other_facts.get('response_deadline', 'NOT FOUND')}")
-                        print(f"    solicitation_number: {other_facts.get('solicitation_number', 'NOT FOUND')}")
+                        if other_facts and isinstance(other_facts, dict):
+                            print(f"\n    --- Opportunity Fields in strict.key_facts.other ---")
+                            print(f"    opportunity_status: {other_facts.get('opportunity_status', 'NOT FOUND')}")
+                            print(f"    notice_type: {other_facts.get('notice_type', 'NOT FOUND')}")
+                            print(f"    response_deadline: {other_facts.get('response_deadline', 'NOT FOUND')}")
+                            print(f"    solicitation_number: {other_facts.get('solicitation_number', 'NOT FOUND')}")
+                        else:
+                            print(f"\n    other field is null/empty (not a government opportunity event)")
 
     print("\n" + "=" * 80)
 
