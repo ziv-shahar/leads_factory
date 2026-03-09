@@ -30,19 +30,28 @@ def clean_awarded_opportunities():
     print("Cleaning up awarded government opportunities...")
     print("=" * 80)
 
-    # Query all government leads
-    response = supabase.table("leads_current").select("*").eq("entity_type", "government_agency").execute()
+    # Query all leads with entity data (join with entities table)
+    # Supabase syntax: select columns from leads_current and nested entity data
+    response = supabase.table("leads_current").select(
+        "id, entity_id, score, status, reasons, entities!entity_id(entity_type, canonical_name, entity_metadata)"
+    ).execute()
 
     all_leads = response.data
-    print(f"\nFound {len(all_leads)} government agency leads")
+
+    # Filter to government agencies only
+    gov_leads = [lead for lead in all_leads if lead.get("entities", {}).get("entity_type") == "government_agency"]
+
+    print(f"\nFound {len(gov_leads)} government agency leads (out of {len(all_leads)} total leads)")
 
     # Track what we'll delete
     to_delete = []
 
-    for lead in all_leads:
+    for lead in gov_leads:
         lead_id = lead.get("id")
-        entity_name = lead.get("entity_name_raw", "Unknown")
-        key_facts = lead.get("key_facts", {})
+        entity_data = lead.get("entities", {})
+        entity_name = entity_data.get("canonical_name", "Unknown")
+        reasons = lead.get("reasons", {})
+        key_facts = reasons.get("key_facts", {})
         other_facts = key_facts.get("other", {}) if key_facts else {}
 
         # Check if awarded
@@ -104,20 +113,28 @@ def clean_expired_opportunities():
     print("Cleaning up expired government opportunities...")
     print("=" * 80)
 
-    # Query all government leads
-    response = supabase.table("leads_current").select("*").eq("entity_type", "government_agency").execute()
+    # Query all leads with entity data (join with entities table)
+    response = supabase.table("leads_current").select(
+        "id, entity_id, score, status, reasons, entities!entity_id(entity_type, canonical_name, entity_metadata)"
+    ).execute()
 
     all_leads = response.data
-    print(f"\nFound {len(all_leads)} government agency leads")
+
+    # Filter to government agencies only
+    gov_leads = [lead for lead in all_leads if lead.get("entities", {}).get("entity_type") == "government_agency"]
+
+    print(f"\nFound {len(gov_leads)} government agency leads (out of {len(all_leads)} total leads)")
 
     # Track what we'll delete
     to_delete = []
     now = datetime.now()
 
-    for lead in all_leads:
+    for lead in gov_leads:
         lead_id = lead.get("id")
-        entity_name = lead.get("entity_name_raw", "Unknown")
-        key_facts = lead.get("key_facts", {})
+        entity_data = lead.get("entities", {})
+        entity_name = entity_data.get("canonical_name", "Unknown")
+        reasons = lead.get("reasons", {})
+        key_facts = reasons.get("key_facts", {})
         other_facts = key_facts.get("other", {}) if key_facts else {}
 
         response_deadline = other_facts.get("response_deadline")
