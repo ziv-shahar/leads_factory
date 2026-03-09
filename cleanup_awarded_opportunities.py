@@ -31,7 +31,7 @@ def clean_awarded_opportunities():
     print("=" * 80)
 
     # Query all government leads
-    response = supabase.table("leads").select("*").eq("entity_type", "government_agency").execute()
+    response = supabase.table("leads_current").select("*").eq("entity_type", "government_agency").execute()
 
     all_leads = response.data
     print(f"\nFound {len(all_leads)} government agency leads")
@@ -90,7 +90,7 @@ def clean_awarded_opportunities():
     deleted_count = 0
     for item in to_delete:
         try:
-            supabase.table("leads").delete().eq("id", item["id"]).execute()
+            supabase.table("leads_current").delete().eq("id", item["id"]).execute()
             deleted_count += 1
         except Exception as e:
             print(f"  ⚠️  Error deleting {item['solicitation']}: {e}")
@@ -105,7 +105,7 @@ def clean_expired_opportunities():
     print("=" * 80)
 
     # Query all government leads
-    response = supabase.table("leads").select("*").eq("entity_type", "government_agency").execute()
+    response = supabase.table("leads_current").select("*").eq("entity_type", "government_agency").execute()
 
     all_leads = response.data
     print(f"\nFound {len(all_leads)} government agency leads")
@@ -172,7 +172,7 @@ def clean_expired_opportunities():
     deleted_count = 0
     for item in to_delete:
         try:
-            supabase.table("leads").delete().eq("id", item["id"]).execute()
+            supabase.table("leads_current").delete().eq("id", item["id"]).execute()
             deleted_count += 1
         except Exception as e:
             print(f"  ⚠️  Error deleting {item['solicitation']}: {e}")
