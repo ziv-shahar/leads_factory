@@ -49,33 +49,45 @@ def main():
         print("=" * 80)
 
         entity_data = lead.get("entities", {})
-        print(f"\nEntity Name: {entity_data.get('canonical_name', 'N/A')}")
+        entity_name = entity_data.get('canonical_name', 'N/A')
+        entity_id = lead.get("entity_id")
+
+        print(f"\nEntity Name: {entity_name}")
         print(f"Entity Type: {entity_data.get('entity_type', 'N/A')}")
+        print(f"Entity ID: {entity_id}")
 
         reasons = lead.get("reasons", {})
         print(f"\nReasons structure keys: {list(reasons.keys())}")
 
-        # Print full reasons structure
-        print("\nFull reasons data:")
-        print(json.dumps(reasons, indent=2))
+        # Check for events for this entity
+        print("\n--- Checking Events Table ---")
+        events_response = supabase.table("events").select(
+            "id, event_type, summary, temporal_status, key_facts"
+        ).eq("entity_id", entity_id).execute()
 
-        # Check for key_facts
-        if "key_facts" in reasons:
-            key_facts = reasons["key_facts"]
-            print(f"\nKey Facts keys: {list(key_facts.keys())}")
+        events = events_response.data
+        print(f"Found {len(events)} events for this entity")
 
-            if "other" in key_facts:
-                other_facts = key_facts["other"]
-                print(f"\nOther Facts keys: {list(other_facts.keys())}")
-                print(f"\nOther Facts data:")
-                print(json.dumps(other_facts, indent=2))
+        for event_idx, event in enumerate(events[:3], 1):  # Show first 3 events
+            print(f"\n  EVENT #{event_idx}:")
+            print(f"    Summary: {event.get('summary', 'N/A')}")
+            print(f"    Event Type: {event.get('event_type', 'N/A')}")
+            print(f"    Temporal Status: {event.get('temporal_status', 'N/A')}")
 
-                # Check for opportunity-specific fields
-                print("\n--- Opportunity Fields ---")
-                print(f"opportunity_status: {other_facts.get('opportunity_status', 'NOT FOUND')}")
-                print(f"notice_type: {other_facts.get('notice_type', 'NOT FOUND')}")
-                print(f"response_deadline: {other_facts.get('response_deadline', 'NOT FOUND')}")
-                print(f"solicitation_number: {other_facts.get('solicitation_number', 'NOT FOUND')}")
+            key_facts = event.get("key_facts", {})
+            if key_facts:
+                print(f"    Key Facts keys: {list(key_facts.keys())}")
+
+                if "other" in key_facts:
+                    other_facts = key_facts["other"]
+                    print(f"\n    --- Opportunity Fields in key_facts.other ---")
+                    print(f"    opportunity_status: {other_facts.get('opportunity_status', 'NOT FOUND')}")
+                    print(f"    notice_type: {other_facts.get('notice_type', 'NOT FOUND')}")
+                    print(f"    response_deadline: {other_facts.get('response_deadline', 'NOT FOUND')}")
+                    print(f"    solicitation_number: {other_facts.get('solicitation_number', 'NOT FOUND')}")
+
+                    print(f"\n    Full other_facts:")
+                    print(f"    {json.dumps(other_facts, indent=6)}")
 
     print("\n" + "=" * 80)
 
