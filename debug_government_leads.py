@@ -62,7 +62,7 @@ def main():
         # Check for events for this entity
         print("\n--- Checking Events Table ---")
         events_response = supabase.table("events").select(
-            "id, event_type, summary, temporal_status, key_facts"
+            "id, event_type, event_time, strict, dynamic_signals, opportunity_id, expired_at"
         ).eq("entity_id", entity_id).execute()
 
         events = events_response.data
@@ -70,24 +70,30 @@ def main():
 
         for event_idx, event in enumerate(events[:3], 1):  # Show first 3 events
             print(f"\n  EVENT #{event_idx}:")
-            print(f"    Summary: {event.get('summary', 'N/A')}")
             print(f"    Event Type: {event.get('event_type', 'N/A')}")
-            print(f"    Temporal Status: {event.get('temporal_status', 'N/A')}")
+            print(f"    Event Time: {event.get('event_time', 'N/A')}")
+            print(f"    Opportunity ID: {event.get('opportunity_id', 'N/A')}")
+            print(f"    Expired At: {event.get('expired_at', 'N/A')}")
 
-            key_facts = event.get("key_facts", {})
-            if key_facts:
-                print(f"    Key Facts keys: {list(key_facts.keys())}")
+            # Check the strict field for structured data
+            strict = event.get("strict", {})
+            if strict:
+                print(f"\n    Strict field keys: {list(strict.keys())}")
+                print(f"\n    Full strict data:")
+                print(f"    {json.dumps(strict, indent=6)}")
 
-                if "other" in key_facts:
-                    other_facts = key_facts["other"]
-                    print(f"\n    --- Opportunity Fields in key_facts.other ---")
-                    print(f"    opportunity_status: {other_facts.get('opportunity_status', 'NOT FOUND')}")
-                    print(f"    notice_type: {other_facts.get('notice_type', 'NOT FOUND')}")
-                    print(f"    response_deadline: {other_facts.get('response_deadline', 'NOT FOUND')}")
-                    print(f"    solicitation_number: {other_facts.get('solicitation_number', 'NOT FOUND')}")
+                # Look for key_facts in strict
+                key_facts = strict.get("key_facts", {})
+                if key_facts and isinstance(key_facts, dict):
+                    print(f"\n    Key Facts keys: {list(key_facts.keys())}")
 
-                    print(f"\n    Full other_facts:")
-                    print(f"    {json.dumps(other_facts, indent=6)}")
+                    if "other" in key_facts:
+                        other_facts = key_facts["other"]
+                        print(f"\n    --- Opportunity Fields in strict.key_facts.other ---")
+                        print(f"    opportunity_status: {other_facts.get('opportunity_status', 'NOT FOUND')}")
+                        print(f"    notice_type: {other_facts.get('notice_type', 'NOT FOUND')}")
+                        print(f"    response_deadline: {other_facts.get('response_deadline', 'NOT FOUND')}")
+                        print(f"    solicitation_number: {other_facts.get('solicitation_number', 'NOT FOUND')}")
 
     print("\n" + "=" * 80)
 
