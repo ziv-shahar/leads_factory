@@ -137,7 +137,7 @@ export async function GET(request: Request) {
       })
     )
 
-    // Filter out expired government opportunities (deadline passed)
+    // Filter out expired government opportunities (deadline passed or missing)
     const filteredLeads = leadsWithEventData.filter(lead => {
       // Only filter government agencies
       if (lead.entity?.entity_type !== 'government_agency') {
@@ -162,7 +162,8 @@ export async function GET(request: Request) {
 
       const deadline = other.response_deadline
       if (!deadline) {
-        return true // No deadline, keep it
+        // No deadline = likely expired/closed, filter it out
+        return false
       }
 
       // Check if deadline has passed
@@ -173,8 +174,8 @@ export async function GET(request: Request) {
         // Keep only if deadline is in the future
         return deadlineDate >= now
       } catch (e) {
-        // If date parsing fails, keep the lead
-        return true
+        // If date parsing fails, filter it out (likely bad data)
+        return false
       }
     })
 
