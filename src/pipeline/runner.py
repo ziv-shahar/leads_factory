@@ -1102,15 +1102,25 @@ class PipelineRunner:
                         # Re-score all location leads for this entity
                         location_leads = db.query(LocationLead).filter(LocationLead.entity_id == entity_id).all()
                         for location_lead in location_leads:
-                            self.location_scorer.score_and_materialize_location_lead(
-                                db=db,
-                                entity=entity,
-                                state=location_lead.state,
-                                city=location_lead.city
-                            )
+                            try:
+                                self.location_scorer.score_and_materialize_location_lead(
+                                    db=db,
+                                    entity=entity,
+                                    state=location_lead.state,
+                                    city=location_lead.city
+                                )
+                            except Exception as loc_error:
+                                self.logger.error(
+                                    f"Failed to re-score location lead for entity {entity_id} "
+                                    f"({entity.canonical_name}) in {location_lead.state}: {loc_error}"
+                                )
+                                # Continue with other location leads
+                                continue
 
                 except Exception as e:
-                    self.logger.error(f"Failed to re-score entity {entity_id}: {e}", exc_info=True)
+                    self.logger.error(f"Failed to re-score entity {entity_id}: {e}")
+                    # Continue with next entity
+                    continue
 
             print(f"✓ Re-scored {len(re_scored_entities)} entities")
 

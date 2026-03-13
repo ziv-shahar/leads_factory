@@ -5,9 +5,12 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from collections import defaultdict
 from statistics import mean
+import logging
 
 from src.db.models import Entity, Event, LocationLead
 from src.config import SCORING_TIME_DECAY_DAYS
+
+logger = logging.getLogger(__name__)
 
 
 class LocationLeadScorer:
@@ -79,10 +82,16 @@ class LocationLeadScorer:
             LocationLead record or None if no events in this state
         """
         # Get all non-expired events for this entity
-        events = db.query(Event).filter(
-            Event.entity_id == entity.id,
-            Event.expired_at.is_(None)  # Exclude expired government opportunities
-        ).all()
+        # Add a reasonable limit to prevent Cloudflare timeouts on entities with too many events
+        try:
+            events = db.query(Event).filter(
+                Event.entity_id == entity.id,
+                Event.expired_at.is_(None)  # Exclude expired government opportunities
+            ).limit(1000).all()  # Limit to 1000 events to prevent timeouts
+        except Exception as e:
+            logger.error(f"Failed to fetch events for entity {entity.id}: {e}")
+            # Return None if we can't fetch events - this entity will be skipped
+            return None
 
         # Filter events by state (check key_facts.state)
         # Also filter out "completed" events - we only want planned/in_progress
