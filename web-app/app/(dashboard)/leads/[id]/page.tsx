@@ -106,7 +106,25 @@ export default function LeadDetailPage() {
   const opportunityEvent = isGovernmentOpportunity && events.length > 0 ? events[0] : null
 
   // Type guard function to narrow key_facts union type
-  type KeyFactsObject = Exclude<NonNullable<Event['strict']>['key_facts'], string[]>
+  type KeyFactsObject = {
+    aboa_sf_min?: number
+    aboa_sf_max?: number
+    amount?: string
+    other?: {
+      solicitation_number?: string
+      response_deadline?: string
+      opportunity_status?: string
+      notice_type?: string
+      delineated_area?: string
+      lease_term_years?: number
+      firm_term_years?: number
+      parking_spaces?: number
+      facility_security_level?: string
+      sub_agency?: string
+      aboa_sf_min?: number
+      aboa_sf_max?: number
+    }
+  }
   const isKeyFactsObject = (kf: any): kf is KeyFactsObject =>
     kf != null && typeof kf === 'object' && !Array.isArray(kf)
 
