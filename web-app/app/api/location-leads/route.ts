@@ -137,11 +137,52 @@ export async function GET(request: Request) {
       })
     )
 
-    console.log(`Returning ${leadsWithEventData.length} leads, ${leadsWithEventData.filter(l => l.latest_event).length} with events`)
+    // Filter out expired government opportunities (deadline passed)
+    const filteredLeads = leadsWithEventData.filter(lead => {
+      // Only filter government agencies
+      if (lead.entity?.entity_type !== 'government_agency') {
+        return true // Keep non-government leads
+      }
+
+      // If no event data, keep the lead
+      if (!lead.latest_event) {
+        return true
+      }
+
+      // Check for response_deadline in key_facts.other
+      const keyFacts = lead.latest_event.strict?.key_facts
+      if (!keyFacts || typeof keyFacts !== 'object' || Array.isArray(keyFacts)) {
+        return true
+      }
+
+      const other = keyFacts.other
+      if (!other || typeof other !== 'object') {
+        return true
+      }
+
+      const deadline = other.response_deadline
+      if (!deadline) {
+        return true // No deadline, keep it
+      }
+
+      // Check if deadline has passed
+      try {
+        const deadlineDate = new Date(deadline)
+        const now = new Date()
+
+        // Keep only if deadline is in the future
+        return deadlineDate >= now
+      } catch (e) {
+        // If date parsing fails, keep the lead
+        return true
+      }
+    })
+
+    console.log(`Returning ${filteredLeads.length} leads (filtered ${leadsWithEventData.length - filteredLeads.length} expired), ${filteredLeads.filter(l => l.latest_event).length} with events`)
 
     const response: LeadsListResponse = {
-      leads: leadsWithEventData,
-      total: count || 0,
+      leads: filteredLeads,
+      total: count || 0, // Note: total count is pre-filter, consider recalculating if needed
       limit,
       offset,
     }
