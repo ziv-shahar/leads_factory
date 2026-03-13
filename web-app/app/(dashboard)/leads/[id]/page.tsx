@@ -117,8 +117,9 @@ export default function LeadDetailPage() {
       response_deadline: keyFacts.other?.response_deadline,
       opportunity_status: keyFacts.other?.opportunity_status,
       notice_type: keyFacts.other?.notice_type,
-      aboa_sf_min: keyFacts.aboa_sf_min,
-      aboa_sf_max: keyFacts.aboa_sf_max,
+      // Check both top-level and other.aboa_sf_min/max (demolition data is in other)
+      aboa_sf_min: keyFacts.other?.aboa_sf_min ?? keyFacts.aboa_sf_min,
+      aboa_sf_max: keyFacts.other?.aboa_sf_max ?? keyFacts.aboa_sf_max,
       amount: keyFacts.amount,
       delineated_area: keyFacts.other?.delineated_area,
       lease_term_years: keyFacts.other?.lease_term_years,

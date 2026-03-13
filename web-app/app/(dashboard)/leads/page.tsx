@@ -25,6 +25,8 @@ type KeyFactsObject = {
     parking_spaces?: number
     facility_security_level?: string
     sub_agency?: string
+    aboa_sf_min?: number
+    aboa_sf_max?: number
   }
 }
 
@@ -42,8 +44,9 @@ function extractOpportunityData(event: Event | null | undefined): OpportunityDat
     response_deadline: keyFacts.other?.response_deadline,
     opportunity_status: keyFacts.other?.opportunity_status,
     notice_type: keyFacts.other?.notice_type,
-    aboa_sf_min: keyFacts.aboa_sf_min,
-    aboa_sf_max: keyFacts.aboa_sf_max,
+    // Check both top-level and other.aboa_sf_min/max (demolition data is in other)
+    aboa_sf_min: keyFacts.other?.aboa_sf_min ?? keyFacts.aboa_sf_min,
+    aboa_sf_max: keyFacts.other?.aboa_sf_max ?? keyFacts.aboa_sf_max,
     amount: keyFacts.amount,
     delineated_area: keyFacts.other?.delineated_area,
     lease_term_years: keyFacts.other?.lease_term_years,
