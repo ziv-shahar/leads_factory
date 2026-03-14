@@ -381,32 +381,34 @@ def is_opportunity_actionable(opportunity: Dict[str, Any]) -> bool:
         return False
 
     # FILTER 2: Skip expired opportunities (deadline passed)
+    # TEMPORARILY DISABLED FOR TESTING - allows processing expired opportunities
+    # TODO: Re-enable this filter after testing
     response_deadline = opportunity.get("response_deadline")
 
-    if response_deadline:
-        try:
-            # Parse deadline - supports multiple formats
-            # Examples: "2026-03-08T15:00:00", "2026-03-08", "2026-03-08 15:00:00"
-            deadline_str = response_deadline.replace("T", " ").split("+")[0].strip()
-
-            # Try parsing with time
-            if " " in deadline_str:
-                deadline_dt = datetime.strptime(deadline_str, "%Y-%m-%d %H:%M:%S")
-            else:
-                # Date only - set to end of day
-                deadline_dt = datetime.strptime(deadline_str, "%Y-%m-%d")
-                deadline_dt = deadline_dt.replace(hour=23, minute=59, second=59)
-
-            # Check if deadline has passed
-            now = datetime.now()
-            if deadline_dt < now:
-                title = opportunity.get("title", "unknown")
-                logger.info(f"Skipping expired opportunity: '{title}' (deadline: {response_deadline})")
-                return False
-
-        except ValueError as e:
-            # If we can't parse the date, log warning but don't filter out
-            logger.warning(f"Could not parse response_deadline '{response_deadline}': {e}")
+    # if response_deadline:
+    #     try:
+    #         # Parse deadline - supports multiple formats
+    #         # Examples: "2026-03-08T15:00:00", "2026-03-08", "2026-03-08 15:00:00"
+    #         deadline_str = response_deadline.replace("T", " ").split("+")[0].strip()
+    #
+    #         # Try parsing with time
+    #         if " " in deadline_str:
+    #             deadline_dt = datetime.strptime(deadline_str, "%Y-%m-%d %H:%M:%S")
+    #         else:
+    #             # Date only - set to end of day
+    #             deadline_dt = datetime.strptime(deadline_str, "%Y-%m-%d")
+    #             deadline_dt = deadline_dt.replace(hour=23, minute=59, second=59)
+    #
+    #         # Check if deadline has passed
+    #         now = datetime.now()
+    #         if deadline_dt < now:
+    #             title = opportunity.get("title", "unknown")
+    #             logger.info(f"Skipping expired opportunity: '{title}' (deadline: {response_deadline})")
+    #             return False
+    #
+    #     except ValueError as e:
+    #         # If we can't parse the date, log warning but don't filter out
+    #         logger.warning(f"Could not parse response_deadline '{response_deadline}': {e}")
 
     return True
 
