@@ -20,6 +20,8 @@ class KeyFact(BaseModel):
     dates: Optional[List[str]] = None
     companies: Optional[List[str]] = None  # Related companies (partners, competitors, etc.)
     products: Optional[List[str]] = None
+    aboa_sf_min: Optional[int] = None  # Minimum office space (ABOA square feet) for government leases
+    aboa_sf_max: Optional[int] = None  # Maximum office space (ABOA square feet) for government leases
     other: Optional[Dict[str, Any]] = None
 
     @field_validator('amount', 'city', 'state', mode='before')
